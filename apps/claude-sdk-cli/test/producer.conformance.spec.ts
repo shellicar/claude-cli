@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
@@ -200,8 +201,9 @@ function runConvProducer(): Captured[] {
   };
 
   // Round 1: user message in, a tool round, assistant tool_use out.
-  conversation.push({ role: 'user', content: [{ type: 'text', text: 'read file X and summarise it' }] });
-  changes.commitUser(CONV, 'm1', 'q1', 't1', HUMAN);
+  const opening: BetaMessageParam = { role: 'user', content: [{ type: 'text', text: 'read file X and summarise it' }] };
+  conversation.push(opening);
+  changes.commitUser(CONV, opening, 'm1', 'q1', 't1', HUMAN);
   drive({ type: 'message_start' });
   drive({ type: 'tool_use_start', id: 'toolu_01ABC', name: 'ReadFile' });
   drive({ type: 'tool_use_input_stop', id: 'toolu_01ABC', input: { path: 'X' } });
@@ -212,8 +214,9 @@ function runConvProducer(): Captured[] {
 
   // Round 2: tool result in, closing assistant text out.
   turn.advance('t2');
-  conversation.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_01ABC', content: 'file contents' }] });
-  changes.commitUser(CONV, 'm3', 'q1', 't2');
+  const toolResults: BetaMessageParam = { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_01ABC', content: 'file contents' }] };
+  conversation.push(toolResults);
+  changes.commitUser(CONV, toolResults, 'm3', 'q1', 't2');
   drive({ type: 'message_start' });
   drive({ type: 'message_end', stopReason: 'end_turn' });
   drive({ type: 'message_usage', inputTokens: 1400, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 1200, outputTokens: 150, costUsd: 0.006, contextWindow: 200_000 });

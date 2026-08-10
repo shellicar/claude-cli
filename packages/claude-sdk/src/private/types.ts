@@ -1,4 +1,4 @@
-import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { ContentBlock, SdkMessageUsage } from '../public/types';
 
 export type ApprovalResponse = {
@@ -52,8 +52,12 @@ export type MessageStreamEvents = {
   // message_start, output at message_end); this fires once per frame carrying that frame's own share,
   // delta-tracked so the shares sum to the turn total. Consumers keep accumulating unchanged.
   message_usage: [usage: Omit<SdkMessageUsage, 'type'>];
-  // The assembled raw message at stream end. Consumed by the CLI writer, which records it
-  // in the audit and projects it into the history index. The user half of the round was
-  // already recorded when it was committed, so it does not ride this event.
+  // The request's trailing user-role message, at the moment the request goes out. This is the
+  // message as the model receives it: after any merge of consecutive user messages, after the
+  // clock stamp, after a heal. What was sent is what the record holds, so the CLI writer records
+  // it here rather than from the conversation array, which is still mutable and shaped for the API.
+  request_sent: [msg: BetaMessageParam];
+  // The assembled raw message at stream end: what came back. Recorded by the CLI writer the
+  // moment it lands, because model output cannot be regenerated.
   final_message: [msg: BetaMessage];
 };

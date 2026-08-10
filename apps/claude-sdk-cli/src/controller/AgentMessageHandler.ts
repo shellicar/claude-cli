@@ -9,7 +9,7 @@ import { dependsOn } from '@shellicar/core-di';
 import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
 import { IMessageCommitter } from '../conv/ConvCommitter.js';
 import { IMessageScope } from '../conv/MessageScope.js';
-import { ICurrentQueryId, ICurrentSender } from '../conv/QueryScope.js';
+import { ICurrentQueryId } from '../conv/QueryScope.js';
 import { ITurnScope } from '../conv/TurnScope.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { CONTENT_INDENT } from '../model/blockLayout.js';
@@ -199,7 +199,6 @@ export class AgentMessageHandler {
   @dependsOn(IApprovalHolder) private readonly approvalHolder!: IApprovalHolder;
   @dependsOn(IMessageCommitter) private readonly commit!: IMessageCommitter;
   @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
-  @dependsOn(ICurrentSender) private readonly sender!: ICurrentSender;
   @dependsOn(ITurnScope) private readonly turn!: ITurnScope;
   @dependsOn(IMessageScope) private readonly messages!: IMessageScope;
   @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
@@ -237,12 +236,6 @@ export class AgentMessageHandler {
         // Open the turn here: query_summary is published once per request, before it goes out, so the
         // id is in place for the telemetry and the approval raise that follow.
         this.turn.begin();
-        // The round's user-role message is the conversation tip at this point, so its id is minted
-        // here, in the same breath as the turn it belongs to.
-        const userMessageId = this.messages.beginUser();
-        const openingQueryId = this.query.queryId ?? '';
-        const openingTurnId = this.turn.turnId ?? '';
-        const openingFrom = this.sender.from;
         // Send-time persistence. query_summary is published once per turn, right
         // before the interruptible request, after the user message that opens the
         // turn is already in the conversation — the end-human message at query
@@ -250,10 +243,7 @@ export class AgentMessageHandler {
         // mid-response still leaves the sent user message on disk, so
         // submit-to-resume can recover it after a restart. Same fire-and-forget
         // contract as the after-assistant save (cf. known debt #1).
-        void this.session
-          .saveConversation()
-          .then(() => this.commit.commitUser(this.session.id, userMessageId, openingQueryId, openingTurnId, openingFrom))
-          .catch((err) => this.logger.error('persist on send failed', { error: String(err) }));
+        void this.session.saveConversation().catch((err) => this.logger.error('persist on send failed', { error: String(err) }));
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
         this.conversation.transitionBlock('meta');
         const deltaLine = msg.systemReminder ? `\n${msg.systemReminder}` : '';

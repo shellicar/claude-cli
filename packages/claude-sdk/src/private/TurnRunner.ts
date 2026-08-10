@@ -117,6 +117,10 @@ export class TurnRunner extends ITurnRunner {
       }
     }
 
+    // The request delta: the trailing user-role message this call carries, read after every shaping
+    // above (merge, clock stamp, heal) so it is exactly what the model is about to receive.
+    const requestDelta = conversation.items.at(-1)?.msg;
+
     const messages = conversation.cloneForRequest(compactEnabled);
 
     // Keep the standing reminders present in every request, including after a
@@ -167,7 +171,7 @@ export class TurnRunner extends ITurnRunner {
         this.requestClock.requestStarted();
         try {
           const stream = this.streamer.stream(body, requestOptions);
-          result = await this.processor.process(stream);
+          result = await this.processor.process(stream, requestDelta);
           this.requestClock.requestSettled(true);
           break;
         } catch (err) {

@@ -2,11 +2,9 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IDurableConfigProvider, QueryRunner } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
-import { IMessageCommitter, IQueryCloser } from '../conv/ConvCommitter.js';
+import { IQueryCloser } from '../conv/ConvCommitter.js';
 import { IConvServicer } from '../conv/ConvServicer.js';
-import { IMessageScope } from '../conv/MessageScope.js';
 import { IQueryScope } from '../conv/QueryScope.js';
-import { ICurrentTurnId } from '../conv/TurnScope.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -74,11 +72,8 @@ export class TurnCoordinator extends ITurnCoordinator {
   @dependsOn(TerminalRenderer) private readonly renderer!: TerminalRenderer;
   @dependsOn(ClaudeMdLoader) private readonly claudeMdLoader!: ClaudeMdLoader;
   @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
-  @dependsOn(IMessageCommitter) private readonly commit!: IMessageCommitter;
   @dependsOn(IQueryCloser) private readonly queryCloser!: IQueryCloser;
   @dependsOn(IQueryScope) private readonly queryScope!: IQueryScope;
-  @dependsOn(ICurrentTurnId) private readonly turn!: ICurrentTurnId;
-  @dependsOn(IMessageScope) private readonly messages!: IMessageScope;
   @dependsOn(ISdkEventBridge) private readonly sdkEventBridge!: ISdkEventBridge;
   #currentAbortController: AbortController | null = null;
   #turnInProgress = false;
@@ -160,9 +155,6 @@ export class TurnCoordinator extends ITurnCoordinator {
 
       this.statusState.setModel(this.configFactory.getEffectiveModel(), this.overrides.model != null);
       await this.session.saveConversation();
-      // A query cancelled during its tools leaves a tool_result message with no next round to publish
-      // it. A no-op when the tip is already out, which is every other ending.
-      this.commit.commitUser(this.session.id, this.messages.beginUser(), this.queryScope.queryId ?? '', this.turn.turnId ?? '');
       const pendingQueryClose = this.sdkEventBridge.takePendingQueryClose();
       if (pendingQueryClose != null) {
         this.queryCloser.closeQuery(this.session.id, pendingQueryClose.queryId, pendingQueryClose.reason);
