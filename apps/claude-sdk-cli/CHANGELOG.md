@@ -123,6 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split model identifier into name and version for separate use
 - Split secrets.ghScoping into two independent settings: secrets.stripGhCredentials (opt-out, default true) controls whether exec strips ambient gh/ssh credentials, and secrets.ghScoping (opt-in, default false) controls whether a Keychain-scoped replacement is injected. Previously stripping was unconditional, so anyone relying on their own ambient GH_TOKEN reaching exec had no way to keep it, even with ghScoping off
 - The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path
+- The conversation file holds messages and nothing else. The ids were being written beside each message as an additive sidecar; they belong to the audit file, which is the durable per-message record
 - The scratchpad is unavailable on platforms with no user id to separate one user's files from another's
 - The user-level CLAUDE.md and SYSTEM.md sources now default off, so nothing is silently concatenated into a session at launch; project, projectClaude and local sources are unchanged, and setting user back to true in config remains supported
 - Throttle streaming markdown decoration to run at most once per 120ms; new text appears immediately as plain text between refreshes and is replaced with the fully styled render on the next refresh, instead of paying full markdown decoration cost on every delta
@@ -139,7 +140,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A query cancelled or aborted mid-round no longer lends its ids to the next one. Its ids lived on the message rows, and because consecutive user messages merge into one row, the next thing you typed inherited the dead query's query and turn ids and was recorded under them
 - A tool call refused without a prompt now says what refused it: the permission setting that decided, the operation it judged, and the paths that selected that setting. It previously reported only that the tool 'is configured to be denied automatically', which was untrue of every case and left both Claude and the operator guessing at a decision the CLI had already made
+- A tool_result message is announced without a sender. It is the mechanical delivery of a tool's output, so naming the agent as having sent it invented a speaker for something nobody said
 - Add `typescript` as a production dependency so consumers do not need it installed separately
 - An error written to the log keeps its name, message, stack and cause instead of rendering as an empty object
 - Apply biome formatting fixes
@@ -180,6 +183,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject unknown flags at launch instead of silently ignoring them
 - Rendered markdown links no longer leak the OSC 8 escape or double the URL; ctrl-click opens the correct address
 - Restore cursor visibility after exiting the CLI (#277)
+- Resuming a conversation no longer republishes its entire history. The publisher tracked how many messages it had sent as a count that survived a restart or a conversation switch, so the first message of a resumed session re-emitted every message before it
 - Resuming a session interrupted mid-tool-call repairs it automatically, with a note explaining the CLI restarted or crashed before the tool finished
 - Self-heal a resumed session that crashed between a tool call and its result: an honest synthetic failure result is appended for each dangling tool_use before anything else touches the conversation
 - Show the API error detail on a failed request instead of only the HTTP status
@@ -190,6 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled
 - Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice
 - Submitting with ctrl+enter now works while command mode is open, instead of requiring it to be closed first
+- The audit file and the conversation bus now record a message under the same id. The audit stored an assistant message under the API's response id while the bus announced it under a separately minted one, so a single message read as two and the published id existed in no durable record
 - Tool status now shows the approval decision (✔/✘) before the tool name and the real execution outcome (✅ ok, ❌ failed, ❗ cancelling, ‼️ cancelled) after it, instead of a single checkmark that only meant the tool was approved
 - Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion
 - Write session marker and history at turn start so they survive mid-response crashes
