@@ -45,6 +45,7 @@ import {
   IProfileEndpoint,
   IQueryRunner,
   IRequestClockListener,
+  IRequestMessageListener,
   ISdkMessagePublisher,
   ISkillGateProvider,
   IStreamProcessor,
@@ -102,6 +103,7 @@ import { ConvServicer, IConvServicer } from '../conv/ConvServicer.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
 import { IMessageScope, MessageScope } from '../conv/MessageScope.js';
 import { ICurrentQueryId, ICurrentSender, IQueryScope, QueryScope } from '../conv/QueryScope.js';
+import { SentMessageRecorder } from '../conv/SentMessageRecorder.js';
 import { ICurrentTurnId, ITurnScope, TurnScope } from '../conv/TurnScope.js';
 import { IWireSayInbox, WireSayInbox } from '../conv/WireSayInbox.js';
 import { AuditTip, IAuditTip } from '../conversations/auditTip.js';
@@ -479,6 +481,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .using([TurnScope], (scope) => scope)
     .asSelf();
   services.register(MessageScope).as(IMessageScope);
+  services.register(SentMessageRecorder).as(IRequestMessageListener);
   // QueryRunner and IQueryRunner share identity from this one register() call.
   services.register(QueryRunner).asSelf().as(IQueryRunner);
 

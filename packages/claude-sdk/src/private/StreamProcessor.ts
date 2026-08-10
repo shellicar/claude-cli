@@ -1,4 +1,4 @@
-import type { BetaContentBlock, BetaMessageParam, BetaUsage } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaContentBlock, BetaUsage } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
@@ -40,11 +40,7 @@ export class StreamProcessor extends IStreamProcessor {
   @dependsOn(IToolRegistry) private readonly registry!: IToolRegistry;
   @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
 
-  public async process(stream: IMessageStream, request?: BetaMessageParam): Promise<MessageStreamResult> {
-    // The request is away; announce what was sent before a single frame of the reply is read.
-    if (request !== undefined) {
-      this.emit('request_sent', request);
-    }
+  public async process(stream: IMessageStream): Promise<MessageStreamResult> {
     let currentToolId: string | null = null;
     // Set when the first tool_use/server_tool_use block starts. The API guarantees
     // stop_reason === 'tool_use' when tool blocks are present, so tool_batch_end is

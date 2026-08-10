@@ -9,7 +9,24 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
-import { AccountLimitListener, Conversation, type DurableConfig, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IToolRegistry, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
+import {
+  AccountLimitListener,
+  Conversation,
+  type DurableConfig,
+  IDurableConfigProvider,
+  IMessageStreamer,
+  IRequestClockListener,
+  IRequestMessageListener,
+  IStreamProcessor,
+  IToolRegistry,
+  IWakeLock,
+  StreamInterruptListener,
+  StreamProcessor,
+  type ThinkingEffort,
+  ToolRegistry,
+  TurnRunner,
+  type WakeLockHandle,
+} from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -83,6 +100,10 @@ class NoopRequestClock extends IRequestClockListener {
   public requestSettled(_kept: boolean): void {}
 }
 
+class NoopRequestMessage extends IRequestMessageListener {
+  public sending(): void {}
+}
+
 // StreamProcessor @dependsOn(IDurableConfigProvider) to price the usage frames it emits. This wiring
 // captures the request and aborts before any stream is processed, so only construction needs it.
 class NoopDurableConfigProvider extends IDurableConfigProvider {
@@ -141,6 +162,7 @@ function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
   services.register(NoopWakeLock).as(IWakeLock);
   services.register(NoopInterruption).as(StreamInterruptListener);
   services.register(NoopRequestClock).as(IRequestClockListener);
+  services.register(NoopRequestMessage).as(IRequestMessageListener);
   services.register(TurnRunner).asSelf();
   return services.buildProvider().resolve(TurnRunner);
 }

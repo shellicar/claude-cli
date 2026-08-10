@@ -7,7 +7,7 @@ import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider'
 import { dependsOn } from '@shellicar/core-di';
 import { IStreamProcessor, ITurnRunner, IWakeLock } from '../public/interfaces';
 import type { ContentBlock, DurableConfig, SystemReminder, TurnInput } from '../public/types';
-import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../public/types';
+import { AccountLimitListener, IRequestClockListener, IRequestMessageListener, StreamInterruptListener } from '../public/types';
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
 import { HEAL_REASON_UNKNOWN, type IConversation } from './Conversation';
 import { buildReminderBlocks, ensureClaudeMdReminders } from './claudeMdReminders';
@@ -62,6 +62,7 @@ export class TurnRunner extends ITurnRunner {
   @dependsOn(IWakeLock) private readonly wakeLock!: IWakeLock;
   @dependsOn(StreamInterruptListener) private readonly interruption!: StreamInterruptListener;
   @dependsOn(IRequestClockListener) private readonly requestClock!: IRequestClockListener;
+  @dependsOn(IRequestMessageListener) private readonly requestMessage!: IRequestMessageListener;
 
   public async run(conversation: IConversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
@@ -117,10 +118,6 @@ export class TurnRunner extends ITurnRunner {
       }
     }
 
-    // The request delta: the trailing user-role message this call carries, read after every shaping
-    // above (merge, clock stamp, heal) so it is exactly what the model is about to receive.
-    const requestDelta = conversation.items.at(-1)?.msg;
-
     const messages = conversation.cloneForRequest(compactEnabled);
 
     // Keep the standing reminders present in every request, including after a
@@ -161,6 +158,15 @@ export class TurnRunner extends ITurnRunner {
     let firstAccountLimitAt: Instant | null = null;
     let transientAttempt = 0;
     let streamInterruptAttempt = 0;
+    // The trailing user-role message this request carries, read after every shaping above (merge,
+    // clock stamp, heal) so it is exactly what the model is about to receive. Announced here, once,
+    // above the retry loop: a reconnect or a backed-off resend is the transport recovering from its
+    // own failure, and it carries the same message.
+    const requestDelta = conversation.items.at(-1)?.msg;
+    if (requestDelta !== undefined) {
+      this.requestMessage.sending(requestDelta);
+    }
+
     // Held across the whole retry loop so the machine stays awake during the
     // request and any backoff waits; released the instant the turn settles, so
     // local work between turns can still let the machine sleep. Always a handle
@@ -171,7 +177,7 @@ export class TurnRunner extends ITurnRunner {
         this.requestClock.requestStarted();
         try {
           const stream = this.streamer.stream(body, requestOptions);
-          result = await this.processor.process(stream, requestDelta);
+          result = await this.processor.process(stream);
           this.requestClock.requestSettled(true);
           break;
         } catch (err) {

@@ -4,10 +4,9 @@ import { dependsOn } from '@shellicar/core-di';
 import { AuditWriter } from '../AuditWriter.js';
 import { IBus } from '../bus/IBus.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
-import { IMessageCommitter } from '../conv/ConvCommitter.js';
 import { IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
 import { IMessageScope } from '../conv/MessageScope.js';
-import { ICurrentQueryId, ICurrentSender } from '../conv/QueryScope.js';
+import { ICurrentQueryId } from '../conv/QueryScope.js';
 import { ICurrentTurnId } from '../conv/TurnScope.js';
 import { telemetryLeaf } from '../conv/telemetryLeaf.js';
 import { encode, stamp } from '../conv/wire.js';
@@ -44,17 +43,12 @@ export class SdkEventBridge extends ISdkEventBridge {
   @dependsOn(Clock) private readonly clock!: Clock;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
-  @dependsOn(ICurrentSender) private readonly sender!: ICurrentSender;
-  @dependsOn(IMessageCommitter) private readonly commit!: IMessageCommitter;
   @dependsOn(ICurrentTurnId) private readonly turn!: ICurrentTurnId;
   @dependsOn(IMessageScope) private readonly messages!: IMessageScope;
   #pendingQueryClose: PendingQueryClose | null = null;
 
   /** Wire both directions. Call once at startup, after every dependency above is live. */
   public wire(): void {
-    // A message becomes a message when the model receives it, so the record is written from the request
-    // rather than from the conversation array, which is still mutable and shaped for the API.
-    this.processor.on('request_sent', (msg) => this.commit.commitUser(this.session.id, msg, this.messages.beginUser(), this.query.queryId ?? '', this.turn.turnId ?? '', this.sender.from));
     // What came back, recorded the moment it lands: model output cannot be regenerated, so it is not
     // left waiting on a disk write. The publish follows on `turn_content` under the same id.
     this.processor.on('final_message', (msg) => this.auditWriter.writeAssistant(this.session.id, msg, this.messages.beginAssistant(), this.query.queryId ?? '', this.turn.turnId ?? ''));

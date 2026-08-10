@@ -320,6 +320,19 @@ export abstract class IRequestClockListener {
   public abstract requestSettled(kept: boolean): void;
 }
 
+/**
+ * Receives the trailing user-role message a request carries, once, immediately before the request is
+ * made. This is the message as the model will receive it: after consecutive user messages have merged,
+ * after the clock stamp, after a heal. A consumer recording what was sent writes here, before the send
+ * rather than after it, because a request that dies in flight was still sent.
+ *
+ * Called above the retry loop, not inside it. A reconnect after a dropped socket or a 429 is the
+ * transport recovering from its own failure; the message is the same message, so it is announced once.
+ */
+export abstract class IRequestMessageListener {
+  public abstract sending(msg: Anthropic.Beta.Messages.BetaMessageParam): void;
+}
+
 /** Receives the tools layer's clock edges from QueryRunner's dispatch. One
  * `toolsStarted` at the first local tool execution of a batch, one
  * `toolsStopped` after the last returns. The clock runs from the first tool to

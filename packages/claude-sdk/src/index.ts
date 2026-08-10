@@ -69,7 +69,7 @@ import type {
   TransformToolResult,
   WakeLockHandle,
 } from './public/types';
-import { AccountLimitListener, IRequestClockListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from './public/types';
+import { AccountLimitListener, IRequestClockListener, IRequestMessageListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
@@ -150,6 +150,7 @@ export {
   IProfileEndpoint,
   IQueryRunner,
   IRequestClockListener,
+  IRequestMessageListener,
   IS_PATH,
   ISdkMessagePublisher,
   ISkillGateProvider,

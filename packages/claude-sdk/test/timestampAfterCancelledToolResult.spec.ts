@@ -14,7 +14,7 @@ import { IDurableConfigProvider } from '../src/public/IDurableConfigProvider.js'
 import { ISdkMessagePublisher } from '../src/public/ISdkMessagePublisher.js';
 import { IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from '../src/public/interfaces.js';
 import type { DurableConfig, PerQueryInput, SystemReminder, ToolResolveResult } from '../src/public/types.js';
-import { AccountLimitListener, IRequestClockListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from '../src/public/types.js';
+import { AccountLimitListener, IRequestClockListener, IRequestMessageListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from '../src/public/types.js';
 
 class NoopLogger extends ILogger {
   public trace(): void {}
@@ -132,6 +132,10 @@ function runQuery(conversation: Conversation, streamer: IMessageStreamer, proces
   services
     .register(IRequestClockListener)
     .using(() => ({ requestStarted: () => {}, requestSettled: () => {} }))
+    .asSelf();
+  services
+    .register(IRequestMessageListener)
+    .using(() => ({ sending: () => {} }))
     .asSelf();
   services.register(TurnRunner).asSelf();
   services
