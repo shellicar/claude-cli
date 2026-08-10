@@ -55,18 +55,15 @@ export class ConvCommitter extends IMessageCommitter implements IPublishedTip, I
   #tip: string | null = null;
   #idRow: HistoryItem | undefined;
   #idForRow: string | null = null;
-  #announcedRow: HistoryItem | undefined;
   #lastClosedQueryId: string | null = null;
 
   public get tip(): string | null {
     return this.#tip;
   }
 
-  /** Take up a conversation that was already committed elsewhere: its tip comes from the durable record,
-   *  and its last row counts as announced, so a message merged onto it is not announced as a new one. */
+  /** Take up a conversation that was already committed elsewhere: its tip comes from the durable record. */
   public adopt(tip: string | null): void {
     this.#tip = tip;
-    this.#announcedRow = this.conversation.items.at(-1);
   }
 
   /** The id of the conversation's tip row, minted on first use and held for as long as that row is the
@@ -93,18 +90,20 @@ export class ConvCommitter extends IMessageCommitter implements IPublishedTip, I
     this.audit.writeUser(conversationId, msg, messageId, queryId, turnId);
   }
 
-  /** Announce the tip on `changes.message`, once. A no-op when that row has already been announced:
-   *  a merge grows the row rather than adding a message, so it is the same message, not a new one. */
+  /** Announce the tip on `changes.message` as the conversation now holds it. Called every time the
+   *  conversation is persisted, so what the conversation contains is what the wire has. A row that grew
+   *  because consecutive user messages merged is announced again under the id it already has: the state
+   *  of a message is its latest announcement, last-write-wins per id (conversation-spec), so the fuller
+   *  content replaces the earlier rather than adding a second message. */
   public announceTip(conversationId: string, queryId: string, turnId: string, from?: Sender): void {
     const item = this.conversation.items.at(-1);
-    if (item === undefined || item === this.#announcedRow) {
+    if (item === undefined || item.msg.role !== 'user') {
       return;
     }
     const messageId = this.#tipId();
     if (messageId === null) {
       return;
     }
-    this.#announcedRow = item;
     this.#announce(conversationId, item.msg, messageId, queryId, turnId, from);
   }
 
@@ -113,10 +112,9 @@ export class ConvCommitter extends IMessageCommitter implements IPublishedTip, I
    *  anything waits on a disk write (see `AuditWriter.writeAssistant`). */
   public announceAssistant(conversationId: string, messageId: string, queryId: string, turnId: string): void {
     const item = this.conversation.items.at(-1);
-    if (item === undefined || item.msg.role !== 'assistant' || item === this.#announcedRow) {
+    if (item === undefined || item.msg.role !== 'assistant') {
       return;
     }
-    this.#announcedRow = item;
     this.#announce(conversationId, item.msg, messageId, queryId, turnId, { kind: 'agent' });
   }
 

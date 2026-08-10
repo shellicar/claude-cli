@@ -63,10 +63,26 @@ async function auditIds(fs: MemoryFileSystem): Promise<string[]> {
     .map((line) => (JSON.parse(line) as { id: string }).id);
 }
 
+const idsOn = (bus: CapturingBus): string[] => bus.published.filter((c) => c.subject === 'conv.v2.conv-1.changes.message').map((c) => (c.body as { id: string }).id);
+
 describe('ConvCommitter — a merged row is one message', () => {
   // Consecutive user messages merge into one row because the API requires strict role alternation.
-  // The row grows; it does not become a second message.
-  it('announces a merged row once, not once per send', () => {
+  // The row grows, so what the conversation holds changes, and the wire has to be told.
+  it('announces the fuller content when a row grows', () => {
+    const { committer, conversation, bus } = build();
+    conversation.push({ role: 'user', content: [{ type: 'text', text: 'first' }] });
+    committer.announceTip('conv-1', 'q1', 't1');
+    conversation.push({ role: 'user', content: [{ type: 'text', text: 'second' }] });
+    committer.announceTip('conv-1', 'q2', 't2');
+
+    const expected = ['first', 'second'];
+    const actual = ((bus.published.filter((c) => c.subject === 'conv.v2.conv-1.changes.message').at(-1)?.body as { content: { text: string }[] }).content ?? []).map((b) => b.text);
+    expect(actual).toEqual(expected);
+  });
+
+  // The row grew; it did not become a second message. The state of a message is its latest
+  // announcement, last-write-wins per id, so the fuller content has to arrive under the same id.
+  it('announces a grown row under the id it already had', () => {
     const { committer, conversation, bus } = build();
     conversation.push({ role: 'user', content: [{ type: 'text', text: 'first' }] });
     committer.announceTip('conv-1', 'q1', 't1');
@@ -74,7 +90,7 @@ describe('ConvCommitter — a merged row is one message', () => {
     committer.announceTip('conv-1', 'q2', 't2');
 
     const expected = 1;
-    const actual = messagesOn(bus);
+    const actual = new Set(idsOn(bus)).size;
     expect(actual).toBe(expected);
   });
 
