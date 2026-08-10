@@ -16,8 +16,8 @@ import { IBus } from '../src/bus/IBus.js';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { AgentMessageHandler } from '../src/controller/AgentMessageHandler.js';
 import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
+import { AssistantMessageScope, IAssistantMessageScope } from '../src/conv/AssistantMessageScope.js';
 import { ConvCommitter, IMessageCommitter } from '../src/conv/ConvCommitter.js';
-import { IMessageScope, MessageScope } from '../src/conv/MessageScope.js';
 import { ICurrentQueryId, ICurrentSender, QueryScope } from '../src/conv/QueryScope.js';
 import { ITurnScope, TurnScope } from '../src/conv/TurnScope.js';
 import { logger } from '../src/logger.js';
@@ -206,7 +206,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
     .using([QueryScope], (scope) => scope)
     .asSelf();
   services.register(TurnScope).as(ITurnScope);
-  services.register(MessageScope).as(IMessageScope);
+  services.register(AssistantMessageScope).as(IAssistantMessageScope);
   services.register(ApprovalNotifier).asSelf();
   services
     .register(ConversationState)

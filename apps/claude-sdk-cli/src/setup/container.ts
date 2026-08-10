@@ -97,11 +97,11 @@ import type { InputHandler } from '../controller/InputHandler.js';
 import { QuitHandler } from '../controller/QuitHandler.js';
 import { ScrollHandler } from '../controller/ScrollHandler.js';
 import { ViewSelectHandler } from '../controller/ViewSelectHandler.js';
+import { AssistantMessageScope, IAssistantMessageScope } from '../conv/AssistantMessageScope.js';
 import { ConvCommitter, IConversationAdopter, IMessageCommitter, IPublishedTip, IQueryCloser } from '../conv/ConvCommitter.js';
 import { ConvServe, IConvServe } from '../conv/ConvServe.js';
 import { ConvServicer, IConvServicer } from '../conv/ConvServicer.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
-import { IMessageScope, MessageScope } from '../conv/MessageScope.js';
 import { ICurrentQueryId, ICurrentSender, IQueryScope, QueryScope } from '../conv/QueryScope.js';
 import { SentMessageRecorder } from '../conv/SentMessageRecorder.js';
 import { ICurrentTurnId, ITurnScope, TurnScope } from '../conv/TurnScope.js';
@@ -480,7 +480,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .register(ICurrentTurnId)
     .using([TurnScope], (scope) => scope)
     .asSelf();
-  services.register(MessageScope).as(IMessageScope);
+  services.register(AssistantMessageScope).as(IAssistantMessageScope);
   services.register(SentMessageRecorder).as(IRequestMessageListener);
   // QueryRunner and IQueryRunner share identity from this one register() call.
   services.register(QueryRunner).asSelf().as(IQueryRunner);

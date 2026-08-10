@@ -7,8 +7,8 @@ import { type AnyToolDefinition, calculateCostSplit, collectPaths, type DurableC
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { dependsOn } from '@shellicar/core-di';
 import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
+import { IAssistantMessageScope } from '../conv/AssistantMessageScope.js';
 import { IMessageCommitter } from '../conv/ConvCommitter.js';
-import { IMessageScope } from '../conv/MessageScope.js';
 import { ICurrentQueryId, ICurrentSender } from '../conv/QueryScope.js';
 import { ITurnScope } from '../conv/TurnScope.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
@@ -201,7 +201,7 @@ export class AgentMessageHandler {
   @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
   @dependsOn(ICurrentSender) private readonly sender!: ICurrentSender;
   @dependsOn(ITurnScope) private readonly turn!: ITurnScope;
-  @dependsOn(IMessageScope) private readonly messages!: IMessageScope;
+  @dependsOn(IAssistantMessageScope) private readonly assistantMessage!: IAssistantMessageScope;
   @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
   #lastUsage: SdkMessageUsage | null = null;
   #toolObjects = new Map<string, ToolObject>();
@@ -448,7 +448,7 @@ export class AgentMessageHandler {
       case 'turn_content': {
         // The assistant's id was minted when its message arrived, at final_message, so the audit and
         // this publish carry the same one.
-        const assistantMessageId = this.messages.assistantMessageId ?? '';
+        const assistantMessageId = this.assistantMessage.messageId ?? '';
         const assistantQueryId = this.query.queryId ?? '';
         const assistantTurnId = this.turn.turnId ?? '';
         // Persist after each assistant turn. The assistant content cannot be
