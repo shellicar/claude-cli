@@ -13,7 +13,7 @@ import { AuditWriter } from '../src/AuditWriter.js';
 import { AgentPresence, IAgentPresence } from '../src/agent/AgentPresence.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
-import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { ConvCommitter, IMessageCommitter, IQueryCloser } from '../src/conv/ConvCommitter.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../src/conv/ConvTelemetryProjector.js';
 import { ICurrentQueryId } from '../src/conv/QueryScope.js';
 import { ICurrentTurnId } from '../src/conv/TurnScope.js';
@@ -176,14 +176,19 @@ function runConvProducer(): Captured[] {
     .register(ICurrentTurnId)
     .using(() => turn)
     .asSelf();
-  services.register(ConvChangePublisher).as(IConvChangePublisher);
+  services.register(ConvCommitter).asSelf().as(IMessageCommitter);
+  services
+    .register(IQueryCloser)
+    .using([ConvCommitter], (committer) => committer)
+    .asSelf();
   services
     .register(IDurableConfigProvider)
     .using(() => durableStub)
     .asSelf();
   services.register(ConvTelemetryProjector).as(IConvTelemetryProjector);
   const provider = services.buildProvider();
-  const changes = provider.resolve(IConvChangePublisher);
+  const changes = provider.resolve(IMessageCommitter);
+  const queryCloser = provider.resolve(IQueryCloser);
   const projector = provider.resolve(IConvTelemetryProjector);
 
   const drive = (msg: SdkMessage): void => {
@@ -196,25 +201,25 @@ function runConvProducer(): Captured[] {
 
   // Round 1: user message in, a tool round, assistant tool_use out.
   conversation.push({ role: 'user', content: [{ type: 'text', text: 'read file X and summarise it' }] });
-  changes.commitUserMessage(CONV, 'm1', 'q1', 't1', HUMAN);
+  changes.commitUser(CONV, 'm1', 'q1', 't1', HUMAN);
   drive({ type: 'message_start' });
   drive({ type: 'tool_use_start', id: 'toolu_01ABC', name: 'ReadFile' });
   drive({ type: 'tool_use_input_stop', id: 'toolu_01ABC', input: { path: 'X' } });
   drive({ type: 'message_end', stopReason: 'tool_use' });
   drive({ type: 'message_usage', inputTokens: 1200, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: 80, costUsd: 0.005, contextWindow: 200_000 });
   conversation.push({ role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_01ABC', name: 'ReadFile', input: { path: 'X' } }] });
-  changes.publishAssistantMessage(CONV, 'm2', 'q1', 't1');
+  changes.commitAssistant(CONV, 'm2', 'q1', 't1');
 
   // Round 2: tool result in, closing assistant text out.
   turn.advance('t2');
   conversation.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_01ABC', content: 'file contents' }] });
-  changes.commitUserMessage(CONV, 'm3', 'q1', 't2');
+  changes.commitUser(CONV, 'm3', 'q1', 't2');
   drive({ type: 'message_start' });
   drive({ type: 'message_end', stopReason: 'end_turn' });
   drive({ type: 'message_usage', inputTokens: 1400, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 1200, outputTokens: 150, costUsd: 0.006, contextWindow: 200_000 });
   conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] });
-  changes.publishAssistantMessage(CONV, 'm4', 'q1', 't2');
-  changes.closeQuery(CONV, 'q1', 'completed');
+  changes.commitAssistant(CONV, 'm4', 'q1', 't2');
+  queryCloser.closeQuery(CONV, 'q1', 'completed');
 
   return bus.published;
 }

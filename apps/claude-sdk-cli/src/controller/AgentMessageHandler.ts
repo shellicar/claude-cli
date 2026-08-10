@@ -7,7 +7,7 @@ import { type AnyToolDefinition, calculateCostSplit, collectPaths, type DurableC
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { dependsOn } from '@shellicar/core-di';
 import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
-import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
+import { IMessageCommitter } from '../conv/ConvCommitter.js';
 import { IMessageScope } from '../conv/MessageScope.js';
 import { ICurrentQueryId, ICurrentSender } from '../conv/QueryScope.js';
 import { ITurnScope } from '../conv/TurnScope.js';
@@ -197,7 +197,7 @@ export class AgentMessageHandler {
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IApprovalHolder) private readonly approvalHolder!: IApprovalHolder;
-  @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
+  @dependsOn(IMessageCommitter) private readonly commit!: IMessageCommitter;
   @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
   @dependsOn(ICurrentSender) private readonly sender!: ICurrentSender;
   @dependsOn(ITurnScope) private readonly turn!: ITurnScope;
@@ -252,7 +252,7 @@ export class AgentMessageHandler {
         // contract as the after-assistant save (cf. known debt #1).
         void this.session
           .saveConversation()
-          .then(() => this.convChanges.commitUserMessage(this.session.id, userMessageId, openingQueryId, openingTurnId, openingFrom))
+          .then(() => this.commit.commitUser(this.session.id, userMessageId, openingQueryId, openingTurnId, openingFrom))
           .catch((err) => this.logger.error('persist on send failed', { error: String(err) }));
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
         this.conversation.transitionBlock('meta');
@@ -463,7 +463,7 @@ export class AgentMessageHandler {
         // interrupt the turn — it is logged, never thrown (cf. known debt #1).
         void this.session
           .saveConversation()
-          .then(() => this.convChanges.publishAssistantMessage(this.session.id, assistantMessageId, assistantQueryId, assistantTurnId))
+          .then(() => this.commit.commitAssistant(this.session.id, assistantMessageId, assistantQueryId, assistantTurnId))
           .catch((err) => this.logger.error('persist after turn failed', { error: String(err) }));
         break;
       }

@@ -5,7 +5,7 @@ import { dependsOn } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { IAgentPresence } from '../agent/AgentPresence.js';
 import type { sdkConfigSchema } from '../cli-config/schema.js';
-import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
+import { IConversationAdopter } from '../conv/ConvCommitter.js';
 import { IConvServe } from '../conv/ConvServe.js';
 import { IAuditTip } from '../conversations/auditTip.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -46,7 +46,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(IAuditTip) private readonly auditTip!: IAuditTip;
-  @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
+  @dependsOn(IConversationAdopter) private readonly adopter!: IConversationAdopter;
   @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<typeof sdkConfigSchema>;
   @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
@@ -150,6 +150,6 @@ export class ConversationSwitcher extends IConversationSwitcher {
     this.statusState.resetTo(await this.auditStats.derive(this.session.id, CacheTtl.OneHour));
     // Take up the new conversation's tip from its durable record, so its `say` premise is judged
     // against what the wire saw rather than against whatever the previous conversation left behind.
-    this.convChanges.adopt(await this.auditTip.read(this.session.id));
+    this.adopter.adopt(await this.auditTip.read(this.session.id));
   }
 }

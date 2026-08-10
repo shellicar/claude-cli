@@ -6,7 +6,7 @@ import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
 import { IBus } from '../src/bus/IBus.js';
-import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { ConvCommitter, IQueryCloser } from '../src/conv/ConvCommitter.js';
 import { CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
@@ -15,7 +15,7 @@ class DiscardingHistoryWriter extends IHistoryWriter {
   public insert(): void {}
 }
 
-function buildPublisher(): { publisher: IConvChangePublisher; bus: CapturingBus } {
+function buildQueryCloser(): { queryCloser: IQueryCloser; bus: CapturingBus } {
   const bus = new CapturingBus();
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
@@ -39,19 +39,23 @@ function buildPublisher(): { publisher: IConvChangePublisher; bus: CapturingBus 
     .using(() => new DiscardingHistoryWriter())
     .asSelf();
   services.register(AuditWriter).asSelf();
-  services.register(ConvChangePublisher).as(IConvChangePublisher);
-  const publisher = services.buildProvider().resolve(IConvChangePublisher);
-  return { publisher, bus };
+  services.register(ConvCommitter).asSelf();
+  services
+    .register(IQueryCloser)
+    .using([ConvCommitter], (committer) => committer)
+    .asSelf();
+  const queryCloser = services.buildProvider().resolve(IQueryCloser);
+  return { queryCloser, bus };
 }
 
-describe('ConvChangePublisher', () => {
+describe('ConvCommitter', () => {
   // A closure is a committal fact: a query closes once. On a cancel, the router closes it
   // `cancelled` and the turn's pending close still fires `aborted` for the same queryId — two
   // contradictory closure facts on the wire.
   it('publishes at most one closure per query', () => {
-    const { publisher, bus } = buildPublisher();
-    publisher.closeQuery('conv-1', 'query-1', 'cancelled');
-    publisher.closeQuery('conv-1', 'query-1', 'aborted');
+    const { queryCloser, bus } = buildQueryCloser();
+    queryCloser.closeQuery('conv-1', 'query-1', 'cancelled');
+    queryCloser.closeQuery('conv-1', 'query-1', 'aborted');
     const expected = 1;
     const actual = bus.published.filter((c) => c.subject === 'conv.v2.conv-1.changes.query').length;
     expect(actual).toBe(expected);

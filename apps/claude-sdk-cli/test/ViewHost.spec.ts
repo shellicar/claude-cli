@@ -18,7 +18,7 @@ import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.j
 import { CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
 import type { InputHandler } from '../src/controller/InputHandler.js';
-import { IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { IConversationAdopter } from '../src/conv/ConvCommitter.js';
 import { IConvServe } from '../src/conv/ConvServe.js';
 import { IAuditTip } from '../src/conversations/auditTip.js';
 import type { AppModeKey } from '../src/model/AppModeState.js';
@@ -334,8 +334,8 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .using(() => ({ read: async () => null }) as IAuditTip)
       .asSelf();
     services
-      .register(IConvChangePublisher)
-      .using(() => ({ adopt: () => {} }) as unknown as IConvChangePublisher)
+      .register(IConversationAdopter)
+      .using(() => ({ adopt: () => {} }) as IConversationAdopter)
       .asSelf();
     services.register(ConversationSwitcher).as(IConversationSwitcher);
     services.register(CommandIntentExecutor).asSelf();

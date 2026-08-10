@@ -9,7 +9,7 @@ import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { IAgentPresence } from '../src/agent/AgentPresence.js';
-import { IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { IConversationAdopter } from '../src/conv/ConvCommitter.js';
 import { IConvServe } from '../src/conv/ConvServe.js';
 import { IAuditTip } from '../src/conversations/auditTip.js';
 import { logger } from '../src/logger.js';
@@ -93,8 +93,8 @@ function makeSwitcher(workspace = new FakeWorkspace()) {
     .using(() => ({ read: async () => null }) as IAuditTip)
     .asSelf();
   services
-    .register(IConvChangePublisher)
-    .using(() => ({ adopt: () => {} }) as unknown as IConvChangePublisher)
+    .register(IConversationAdopter)
+    .using(() => ({ adopt: () => {} }) as IConversationAdopter)
     .asSelf();
   services.register(ConversationSwitcher).asSelf().as(IConversationSwitcher);
   const provider = services.buildProvider();

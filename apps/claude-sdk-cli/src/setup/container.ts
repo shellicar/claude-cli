@@ -96,7 +96,7 @@ import type { InputHandler } from '../controller/InputHandler.js';
 import { QuitHandler } from '../controller/QuitHandler.js';
 import { ScrollHandler } from '../controller/ScrollHandler.js';
 import { ViewSelectHandler } from '../controller/ViewSelectHandler.js';
-import { ConvChangePublisher, IConvChangePublisher, IPublishedTip } from '../conv/ConvChangePublisher.js';
+import { ConvCommitter, IConversationAdopter, IMessageCommitter, IPublishedTip, IQueryCloser } from '../conv/ConvCommitter.js';
 import { ConvServe, IConvServe } from '../conv/ConvServe.js';
 import { ConvServicer, IConvServicer } from '../conv/ConvServicer.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
@@ -433,11 +433,19 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(WireSayInbox).as(IWireSayInbox);
   services.register(ConvServicer).as(IConvServicer);
   services.register(ConvServe).as(IConvServe);
-  services.register(ConvChangePublisher).asSelf().as(IConvChangePublisher);
-  // The say premise is checked against what was published, and the publisher is what published it.
+  // One committer behind four seams: each caller depends only on the one it uses.
+  services.register(ConvCommitter).asSelf().as(IMessageCommitter);
   services
     .register(IPublishedTip)
-    .using([ConvChangePublisher], (publisher) => publisher)
+    .using([ConvCommitter], (committer) => committer)
+    .asSelf();
+  services
+    .register(IConversationAdopter)
+    .using([ConvCommitter], (committer) => committer)
+    .asSelf();
+  services
+    .register(IQueryCloser)
+    .using([ConvCommitter], (committer) => committer)
     .asSelf();
   services.register(ApprovalHolder).as(IApprovalHolder);
   services.register(AgentPresence).as(IAgentPresence);

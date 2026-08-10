@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { AgentServicer, IAgentServicer } from '../src/agent/AgentServicer.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
-import { IPublishedTip } from '../src/conv/ConvChangePublisher.js';
+import { IPublishedTip } from '../src/conv/ConvCommitter.js';
 import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
 import { IQueryScope } from '../src/conv/QueryScope.js';
 import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';

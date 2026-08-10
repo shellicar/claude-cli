@@ -3,7 +3,7 @@ import { Conversation, IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { IBus } from '../src/bus/IBus.js';
-import { IPublishedTip } from '../src/conv/ConvChangePublisher.js';
+import { IPublishedTip } from '../src/conv/ConvCommitter.js';
 import { ConvServe, IConvServe } from '../src/conv/ConvServe.js';
 import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
 import { IQueryScope, QueryScope } from '../src/conv/QueryScope.js';

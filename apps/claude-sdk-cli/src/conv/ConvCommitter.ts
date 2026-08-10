@@ -9,40 +9,45 @@ import { stamp } from './wire.js';
  *  (conversation-spec). */
 export type QueryCloseReason = 'completed' | 'cancelled' | 'aborted';
 
-/** The conversation's tip: the id of the last message published on `changes.message`, `null` when
+/** The conversation's tip: the id of the last message announced on `changes.message`, `null` when
  *  none has been. A `say` states this as its premise, so it has to be the id the wire actually saw. */
 export abstract class IPublishedTip {
   public abstract get tip(): string | null;
 }
 
-/** The change publisher's contract; register abstract→concrete and depend on the abstract (DI rule). */
-export abstract class IConvChangePublisher extends IPublishedTip {
+/** Takes up a conversation committed by some earlier process, at boot or on a switch. */
+export abstract class IConversationAdopter {
   public abstract adopt(tip: string | null): void;
-  public abstract commitUserMessage(conversationId: string, messageId: string, queryId: string, turnId: string, from?: Sender): void;
-  public abstract publishAssistantMessage(conversationId: string, messageId: string, queryId: string, turnId: string): void;
+}
+
+/** Commits the conversation's tip: records it and announces it, as one act. */
+export abstract class IMessageCommitter {
+  public abstract commitUser(conversationId: string, messageId: string, queryId: string, turnId: string, from?: Sender): void;
+  public abstract commitAssistant(conversationId: string, messageId: string, queryId: string, turnId: string): void;
+}
+
+/** Publishes the fact that a query will grow no further. */
+export abstract class IQueryCloser {
   public abstract closeQuery(conversationId: string, queryId: string, reason: QueryCloseReason): void;
 }
 
 /**
- * Publishes `message` changes for rows committed to the jsonl, after persistence — appearance on
- * `changes.message` is the definition of "in the conversation" (conversation-spec).
+ * Commits a message to the conversation's two records: the audit file it is kept in, and
+ * `changes.message`, appearance on which is the definition of "in the conversation"
+ * (conversation-spec). One decision drives both, so they cannot come to hold different sets.
  *
- * A caller publishes the conversation's tip under an id it hands in, rather than the publisher
- * walking the message array: an id is minted per message where the message is recorded, and the
- * array holds none. That is also what keeps a loaded conversation off the wire — its rows were
- * published by whichever process committed them, and nothing here is ever told to publish them again.
- *
- * Also publishes `query` closure — the fact that a query will grow no further, published once its
- * closing reason is known (the caller decides: `end_turn` → completed, an accepted cancel → cancelled,
- * an aborted attempt → aborted).
+ * A caller commits the conversation's tip under an id it hands in, rather than this walking the
+ * message array: an id is minted per message where the message is recorded, and the array holds
+ * none. That is also what keeps a loaded conversation off the wire — its rows were committed by
+ * whichever process wrote them, and nothing here is ever told to commit them again.
  */
-export class ConvChangePublisher extends IConvChangePublisher {
+export class ConvCommitter extends IMessageCommitter implements IPublishedTip, IConversationAdopter, IQueryCloser {
   @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(AuditWriter) private readonly audit!: AuditWriter;
   @dependsOn(IBus) private readonly bus!: IBus;
   @dependsOn(Clock) private readonly clock!: Clock;
   #tip: string | null = null;
-  #lastPublished: HistoryItem | undefined;
+  #lastCommitted: HistoryItem | undefined;
   #lastClosedQueryId: string | null = null;
 
   public get tip(): string | null {
@@ -50,35 +55,39 @@ export class ConvChangePublisher extends IConvChangePublisher {
   }
 
   /** Take up a conversation that was already committed elsewhere: its tip comes from the durable
-   *  record, and its last row counts as published so a message merged onto it is not published twice. */
+   *  record, and its last row counts as committed so a message merged onto it is not committed twice. */
   public adopt(tip: string | null): void {
     this.#tip = tip;
-    this.#lastPublished = this.conversation.items.at(-1);
+    this.#lastCommitted = this.conversation.items.at(-1);
   }
 
-  /** Commit the conversation's tip under `messageId`: record it in the audit, then announce it. Both or
-   *  neither, decided once here, so the durable record and the wire hold the same set of messages and a
-   *  resumed conversation can read its tip back out of the audit.
-   *
-   *  A no-op when the tip is the row already committed: consecutive user messages merge into that row
-   *  rather than appending a new one, so there is no new message. */
-  public commitUserMessage(conversationId: string, messageId: string, queryId: string, turnId: string, from?: Sender): void {
-    const item = this.conversation.items.at(-1);
-    if (item === undefined || item === this.#lastPublished) {
+  /** Record the tip in the audit, then announce it. A no-op when the tip is the row already
+   *  committed: consecutive user messages merge into that row rather than appending a new one, so
+   *  there is no new message. */
+  public commitUser(conversationId: string, messageId: string, queryId: string, turnId: string, from?: Sender): void {
+    const item = this.#uncommittedTip();
+    if (item === undefined) {
       return;
     }
     this.audit.writeUser(conversationId, item.msg, messageId, queryId, turnId);
     this.#announce(conversationId, item, messageId, queryId, turnId, from);
   }
 
-  /** Announce the assistant's message. No audit write: it was recorded the moment the response
-   *  completed, which is deliberately earlier than this (see `AuditWriter.writeAssistant`). */
-  public publishAssistantMessage(conversationId: string, messageId: string, queryId: string, turnId: string): void {
-    const item = this.conversation.items.at(-1);
-    if (item === undefined || item === this.#lastPublished) {
+  /** Announce the assistant's message. Its audit line was written the moment the response completed,
+   *  deliberately earlier than this: model output cannot be regenerated, so it is recorded before
+   *  anything waits on a disk write (see `AuditWriter.writeAssistant`). */
+  public commitAssistant(conversationId: string, messageId: string, queryId: string, turnId: string): void {
+    const item = this.#uncommittedTip();
+    if (item === undefined) {
       return;
     }
     this.#announce(conversationId, item, messageId, queryId, turnId, { kind: 'agent' });
+  }
+
+  /** The tip when it is a message not yet committed, `undefined` when there is nothing new. */
+  #uncommittedTip(): HistoryItem | undefined {
+    const item = this.conversation.items.at(-1);
+    return item === undefined || item === this.#lastCommitted ? undefined : item;
   }
 
   #announce(conversationId: string, item: HistoryItem, messageId: string, queryId: string, turnId: string, from: Sender | undefined): void {
@@ -89,7 +98,7 @@ export class ConvChangePublisher extends IConvChangePublisher {
     const mechanical = Array.isArray(item.msg.content) && item.msg.content.every((block) => block.type === 'tool_result');
     const sender = mechanical || from === undefined ? {} : { from };
     this.bus.publish(`conv.v2.${conversationId}.changes.message`, stamp(this.clock, { id: messageId, queryId, turnId, role: item.msg.role, ...sender, content }));
-    this.#lastPublished = item;
+    this.#lastCommitted = item;
     this.#tip = messageId;
   }
 

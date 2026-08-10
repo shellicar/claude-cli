@@ -2,7 +2,7 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { Sender } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
-import { IPublishedTip } from './ConvChangePublisher.js';
+import { IPublishedTip } from './ConvCommitter.js';
 import { IQueryScope } from './QueryScope.js';
 import { IWireSayInbox } from './WireSayInbox.js';
 import { encode } from './wire.js';

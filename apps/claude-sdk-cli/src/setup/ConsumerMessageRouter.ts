@@ -2,7 +2,7 @@ import { Clock } from '@js-joda/core';
 import { ApprovalCoordinator } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { IBus } from '../bus/IBus.js';
-import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
+import { IQueryCloser } from '../conv/ConvCommitter.js';
 import { IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
 import { ICurrentQueryId } from '../conv/QueryScope.js';
 import { telemetryLeaf } from '../conv/telemetryLeaf.js';
@@ -35,7 +35,7 @@ export class ConsumerMessageRouter extends IConsumerMessageRouter {
   @dependsOn(Clock) private readonly clock!: Clock;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
-  @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
+  @dependsOn(IQueryCloser) private readonly queryCloser!: IQueryCloser;
   @dependsOn(SdkChannel) private readonly sdkChannel!: SdkChannel;
 
   public wire(): void {
@@ -49,7 +49,7 @@ export class ConsumerMessageRouter extends IConsumerMessageRouter {
         this.bus.publish(`conv.v2.${this.session.id}.telemetry.${cancelled.leaf}`, stamp(this.clock, cancelled.rest));
         const cancelledQueryId = this.query.queryId;
         if (cancelledQueryId != null) {
-          this.convChanges.closeQuery(this.session.id, cancelledQueryId, 'cancelled');
+          this.queryCloser.closeQuery(this.session.id, cancelledQueryId, 'cancelled');
         }
         this.turnCoordinator.abort();
       } else if (outcome === 'tool_cancel') {
