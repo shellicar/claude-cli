@@ -55,6 +55,7 @@ export class ConvCommitter extends IMessageCommitter implements IPublishedTip, I
   #tip: string | null = null;
   #idRow: HistoryItem | undefined;
   #idForRow: string | null = null;
+  #senderForRow: Sender | undefined;
   #lastClosedQueryId: string | null = null;
 
   public get tip(): string | null {
@@ -76,6 +77,7 @@ export class ConvCommitter extends IMessageCommitter implements IPublishedTip, I
     if (item !== this.#idRow) {
       this.#idRow = item;
       this.#idForRow = randomUUID();
+      this.#senderForRow = undefined;
     }
     return this.#idForRow;
   }
@@ -104,7 +106,13 @@ export class ConvCommitter extends IMessageCommitter implements IPublishedTip, I
     if (messageId === null) {
       return;
     }
-    this.#announce(conversationId, item.msg, messageId, queryId, turnId, from);
+    // Who said it is a property of the message, not of the moment it is announced. A later
+    // announcement of the same row that is not told the sender keeps the one the row already had,
+    // because the wire's state of a message is its latest announcement.
+    if (from !== undefined) {
+      this.#senderForRow = from;
+    }
+    this.#announce(conversationId, item.msg, messageId, queryId, turnId, this.#senderForRow);
   }
 
   /** Announce the assistant's message. Its audit line was written the moment the response completed,

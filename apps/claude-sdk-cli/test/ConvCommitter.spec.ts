@@ -1,12 +1,15 @@
+import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
+import { SqliteHistoryEngine } from '@shellicar/claude-core/history/SqliteHistoryEngine';
 import { Conversation, IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvCommitter, IMessageCommitter, IQueryCloser } from '../src/conv/ConvCommitter.js';
+import { logger } from '../src/logger.js';
 import { CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
@@ -17,7 +20,7 @@ class DiscardingHistoryWriter extends IHistoryWriter {
   public insert(): void {}
 }
 
-function build(): { committer: ConvCommitter; conversation: Conversation; bus: CapturingBus; fs: MemoryFileSystem } {
+function build(index: IHistoryWriter = new DiscardingHistoryWriter()): { committer: ConvCommitter; conversation: Conversation; bus: CapturingBus; fs: MemoryFileSystem } {
   const bus = new CapturingBus();
   const conversation = new Conversation();
   const fs = new MemoryFileSystem({}, '/home/user');
@@ -41,7 +44,7 @@ function build(): { committer: ConvCommitter; conversation: Conversation; bus: C
     .asSelf();
   services
     .register(IHistoryWriter)
-    .using(() => new DiscardingHistoryWriter())
+    .using(() => index)
     .asSelf();
   services.register(AuditWriter).asSelf();
   services.register(ConvCommitter).asSelf().as(IMessageCommitter);
@@ -107,6 +110,21 @@ describe('ConvCommitter — a merged row is one message', () => {
     expect(actual).toBe(expected);
   });
 
+  // The row was sent, then grew, then was sent again. The index dedups on the message id and drops the
+  // conflict, so the send that carried the fuller content never reaches it.
+  it('keeps the text added to a grown row searchable', () => {
+    const index = new SqliteHistoryEngine(new DatabaseSync(':memory:'), logger);
+    const { committer, conversation } = build(index);
+    conversation.push({ role: 'user', content: [{ type: 'text', text: 'first' }] });
+    committer.recordSent('conv-1', conversation.items[0]?.msg as never, 'q1', 't1');
+    conversation.push({ role: 'user', content: [{ type: 'text', text: 'kumquat' }] });
+    committer.recordSent('conv-1', conversation.items[0]?.msg as never, 'q1', 't2');
+
+    const expected = 1;
+    const actual = index.search({ query: 'kumquat', limit: 10 }).length;
+    expect(actual).toBe(expected);
+  });
+
   it('announces a genuinely new row as its own message', () => {
     const { committer, conversation, bus } = build();
     conversation.push({ role: 'user', content: [{ type: 'text', text: 'ask' }] });
@@ -117,6 +135,38 @@ describe('ConvCommitter — a merged row is one message', () => {
     const expected = 2;
     const actual = messagesOn(bus);
     expect(actual).toBe(expected);
+  });
+});
+
+describe('ConvCommitter — provenance', () => {
+  // The turn's final announcement of a row that is still the tip (a query cancelled before its reply)
+  // is made with no sender. Last-write-wins per id, so that announcement is the state the wire keeps.
+  it('keeps the sender on a human message re-announced at the end of the turn', () => {
+    const { committer, conversation, bus } = build();
+    conversation.push({ role: 'user', content: [{ type: 'text', text: 'ask' }] });
+    committer.announceTip('conv-1', 'q1', 't1', { kind: 'human' });
+    committer.announceTip('conv-1', 'q1', 't1');
+
+    const expected = { kind: 'human' };
+    const actual = bus.published.filter((c) => c.subject === 'conv.v2.conv-1.changes.message').at(-1)?.body as { from?: unknown };
+    expect(actual.from).toEqual(expected);
+  });
+});
+
+describe('ConvCommitter — the assistant message', () => {
+  // turn_content announces only after the conversation has been persisted, and QueryRunner commits the
+  // round's tool_result without waiting for that write. The assistant's audit line is already written,
+  // so an announcement skipped because the tip moved is the two records disagreeing.
+  it('announces the assistant message when the tool_result has already been committed', () => {
+    const { committer, conversation, bus } = build();
+    conversation.push({ role: 'user', content: [{ type: 'text', text: 'ask' }] });
+    conversation.push({ role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'ReadFile', input: {} }] });
+    conversation.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'out' }] });
+    committer.announceAssistant('conv-1', 'a1', 'q1', 't1');
+
+    const expected = ['a1'];
+    const actual = idsOn(bus);
+    expect(actual).toEqual(expected);
   });
 });
 
