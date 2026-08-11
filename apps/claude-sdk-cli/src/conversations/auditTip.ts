@@ -9,6 +9,15 @@ export abstract class IAuditTip {
   public abstract read(conversationId: string): Promise<string | null>;
 }
 
+function parseId(line: string): string | null {
+  try {
+    const id = (JSON.parse(line) as { id?: unknown }).id;
+    return typeof id === 'string' ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 export class AuditTip extends IAuditTip {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
 
@@ -19,10 +28,13 @@ export class AuditTip extends IAuditTip {
     }
     const raw = await this.fs.readFile(path);
     const lines = raw.split('\n').filter((line) => line.length > 0);
-    // Backwards, because a pre-v2 tail line carries no id and is not the tip of anything the wire saw.
+    // Backwards, because a line carrying no id is not the tip of anything the wire saw. A line that
+    // will not parse is skipped for the same reason rather than thrown: the audit is appended without
+    // waiting for the write, so a process killed mid-append leaves a half-written last line, and this
+    // runs on the startup path where throwing means the CLI never opens the conversation at all.
     for (let i = lines.length - 1; i >= 0; i--) {
-      const id = (JSON.parse(lines[i] as string) as { id?: unknown }).id;
-      if (typeof id === 'string') {
+      const id = parseId(lines[i] as string);
+      if (id !== null) {
         return id;
       }
     }
