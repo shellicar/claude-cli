@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable system prompts via SYSTEM.md, --system, and sdk-config
 - Configure tool approval permissions via a permissions block in sdk-config.json
 - Copy a code block by clicking the icon in its top border. The block's source is put on the system clipboard, unwrapped and undecorated, and the status bar confirms how many lines went
+- Copy a whole block by clicking the icon on its header. The icon appears once the block is sealed, since copying one still being written gives you less than it will hold
 - Customize which commands ExecV3 will run or refuse, without a mistake in that customization ever disabling safety or breaking the rest of your settings
 - Decode escape sequences in --prompt values: \n, \r, \t, \\
 - Display server tool use as its own block in the conversation
