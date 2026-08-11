@@ -9,6 +9,7 @@ import type { ClickRegion } from '../model/ClickRegion.js';
 import type { Block, IConversationState } from '../model/ConversationState.js';
 import { MIN_DIVIDER_WIDTH } from '../model/dividerWidths.js';
 import { type Laid, markdownContent, renderTokens, splitSealedTokens } from '../model/markdown/markdownLayout.js';
+import { ACCENT, COPY_ICON } from '../model/markdown/palette.js';
 import { formatDuration } from './formatDuration.js';
 
 const FILL = '\u2500';
@@ -236,6 +237,26 @@ export function buildDivider(displayLabel: string | null, cols: number, timestam
 }
 
 /**
+ * A block's header divider, with the copy affordance that puts the whole block on the
+ * clipboard. Only sealed blocks get one: until a block closes there is less to copy than
+ * there will be, and a partial copy is not worth offering. Same rule as the code box,
+ * whose icon waits for its fence to close.
+ */
+export function buildBlockDivider(displayLabel: string, cols: number, timestamps?: DividerTimestamps): { line: string; iconCol: number } {
+  const bare = buildDivider(displayLabel, cols, timestamps);
+  return { line: `${bare} ${ACCENT}${COPY_ICON}${RESET}`, iconCol: stringWidth(bare) + 1 };
+}
+
+/** The content of the run of same-type blocks starting at `start`, as it reads on screen. */
+function runContent(blocks: ReadonlyArray<Block>, start: number): string {
+  const parts: string[] = [];
+  for (let i = start; i < blocks.length && blocks[i]?.type === blocks[start]?.type; i++) {
+    parts.push(blocks[i]?.content ?? '');
+  }
+  return parts.join('');
+}
+
+/**
  * Render conversation blocks into an array of display lines for the alt-buffer viewport.
  *
  * Returns sealed blocks + active streaming block. The caller (AppLayout) appends the
@@ -260,7 +281,11 @@ export function renderConversationFrame(state: IConversationState, cols: number,
     if (!isContinuation && block.type !== 'notice') {
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      allContent.push(buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt)));
+      const header = buildBlockDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt));
+      // Consecutive same-type blocks render under this one header as a single visible
+      // section, so its icon copies the whole run rather than the first block of it.
+      regions.push({ row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: runContent(sealedBlocks, i) });
+      allContent.push(header.line);
       allContent.push('');
     }
     const laid = renderBlockFrameCached(block, block.content, cols, blockRendersMarkdown(block, markdown));
