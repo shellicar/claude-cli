@@ -1,6 +1,10 @@
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
-import { markdownContentLines } from '../src/model/markdown/markdownLayout.js';
+import type { CodeDecorator } from '../src/model/blockLayout.js';
+import { markdownContent } from '../src/model/markdown/markdownLayout.js';
+
+const markdownContentLines = (content: string, cols: number, indent: string, decorate: CodeDecorator): string[] => markdownContent(content, cols, indent, decorate).lines;
+
 import { ACCENT, BOLD, BOLD_END, box, CODE_FG, COPY_ICON, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from '../src/model/markdown/palette.js';
 import { getHighlighted } from '../src/view/renderConversation.js';
 

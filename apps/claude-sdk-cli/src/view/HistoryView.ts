@@ -1,7 +1,7 @@
 import { HISTORY_CONTENT_INDENT, historyContentBudget, historyOpenLines } from '../model/blockLayout.js';
 import type { Block } from '../model/ConversationState.js';
 import type { IHistoryViewState } from '../model/HistoryViewState.js';
-import { buildDivider, getHighlighted, renderBlockContentCached } from './renderConversation.js';
+import { buildDivider, getHighlighted, renderBlockFrameCached } from './renderConversation.js';
 import { renderViewBar } from './renderViewBar.js';
 import type { Frame, View, ViewModel } from './View.js';
 
@@ -107,12 +107,12 @@ export class HistoryView implements View {
     // Focused but collapsed: gutter every line, cap the content.
     if (focused) {
       const inner = cols - GUTTER.length;
-      const capped = this.#cap(renderBlockContentCached(block, block.content, inner, false));
+      const capped = this.#cap(renderBlockFrameCached(block, block.content, inner, false).lines);
       return [`${GUTTER}${buildDivider(`${label}  (focused)`, inner)}`, ...capped.map((l) => `${GUTTER}${l}`)];
     }
 
     // Unfocused: flush, collapsed.
-    return [buildDivider(label, cols), ...this.#cap(renderBlockContentCached(block, block.content, cols, false))];
+    return [buildDivider(label, cols), ...this.#cap(renderBlockFrameCached(block, block.content, cols, false).lines)];
   }
 
   #toolsCard(block: Block, focused: boolean, hv: IHistoryViewState, cols: number, rows: number): string[] {
@@ -145,10 +145,10 @@ export class HistoryView implements View {
     const names = tools.map((tool) => tool.name).join(' . ');
     if (focused) {
       const inner = cols - GUTTER.length;
-      const preview = this.#cap(renderBlockContentCached(block, names, inner, false));
+      const preview = this.#cap(renderBlockFrameCached(block, names, inner, false).lines);
       return [`${GUTTER}${buildDivider(`${label} (${n})  (focused)`, inner)}`, ...preview.map((l) => `${GUTTER}${l}`)];
     }
-    return [buildDivider(`${label} (${n})`, cols), ...this.#cap(renderBlockContentCached(block, names, cols, false))];
+    return [buildDivider(`${label} (${n})`, cols), ...this.#cap(renderBlockFrameCached(block, names, cols, false).lines)];
   }
 
   /** Cap a collapsed box's content: keep the first lines, mark more with a `...` line — only when there is more. */

@@ -1,6 +1,10 @@
 import { marked } from 'marked';
 import { describe, expect, it } from 'vitest';
-import { markdownContentLines } from '../src/model/markdown/markdownLayout.js';
+import type { CodeDecorator } from '../src/model/blockLayout.js';
+import { markdownContent } from '../src/model/markdown/markdownLayout.js';
+
+const markdownContentLines = (content: string, cols: number, indent: string, decorate: CodeDecorator): string[] => markdownContent(content, cols, indent, decorate).lines;
+
 import { BULLET } from '../src/model/markdown/palette.js';
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI for test assertions

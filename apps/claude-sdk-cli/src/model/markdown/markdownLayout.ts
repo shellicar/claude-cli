@@ -202,11 +202,6 @@ export function markdownContent(content: string, cols: number, indent: string, d
   return { lines: laid.lines.map((l) => indent + l), regions: shift(laid.regions, 0, indent.length) };
 }
 
-/** The lines alone, for callers with nothing to do with the clickable spans. */
-export function markdownContentLines(content: string, cols: number, indent: string, decorate: CodeDecorator): string[] {
-  return markdownContent(content, cols, indent, decorate).lines;
-}
-
 /**
  * Lex `content` and split the resulting tokens at the last top-level `space` token (a blank line).
  * Everything up to and including that split is permanently sealed: marked's block tokenizer never
@@ -236,9 +231,4 @@ export function renderTokens(tokens: Token[], cols: number, indent: string, deco
   const inner = Math.max(1, cols - indent.length);
   const laid = blocks(tokens, inner, decorate);
   return { lines: laid.lines.map((l) => indent + l), regions: shift(laid.regions, 0, indent.length) };
-}
-
-/** The lines alone, for callers with nothing to do with the clickable spans. */
-export function renderTokenLines(tokens: Token[], cols: number, indent: string, decorate: CodeDecorator): string[] {
-  return renderTokens(tokens, cols, indent, decorate).lines;
 }

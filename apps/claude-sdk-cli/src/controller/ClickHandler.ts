@@ -9,10 +9,11 @@ import { StatusState } from '../model/StatusState.js';
 import type { InputHandler } from './InputHandler.js';
 
 /**
- * Turns a click on the frame into a copy. A press remembers the target under the
- * pointer; a release on the same target copies its text. Anything else that arrives
- * abandons the press, because a gesture interrupted by a keystroke, a scroll or a second
- * button is not a click.
+ * Turns a click on the frame into a copy. A press remembers the target under the pointer;
+ * a release copies when it lands on that same target, and does nothing otherwise. That is
+ * the whole rule, and nothing else abandons a held press: a release always resolves
+ * against the frame on screen at that moment, so a scroll or a repaint in between simply
+ * means the release finds a different target, or none.
  *
  * Claims both mouse events whether or not they hit anything, so a click on empty space
  * never travels on to the editor as input.
@@ -37,7 +38,6 @@ export class ClickHandler implements InputHandler {
       }
       return true;
     }
-    this.tracker.clear();
     return false;
   }
 }

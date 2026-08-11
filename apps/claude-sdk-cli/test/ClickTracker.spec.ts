@@ -51,14 +51,6 @@ describe('ClickTracker', () => {
     expect(actual).toBeNull();
   });
 
-  it('returns null for a release after the press was cleared', () => {
-    const tracker = new ClickTracker();
-    tracker.press(region('const a = 1;'));
-    tracker.clear();
-    const actual = tracker.release(region('const a = 1;'));
-    expect(actual).toBeNull();
-  });
-
   it('returns null for a second release once the first consumed the press', () => {
     const tracker = new ClickTracker();
     tracker.press(region('const a = 1;'));

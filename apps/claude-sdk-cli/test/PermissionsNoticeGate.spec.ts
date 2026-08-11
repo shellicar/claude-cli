@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { PermissionsConfigInput } from '../src/cli-config/formatPermissionsDisplay.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { PermissionsNoticeGate } from '../src/model/PermissionsNoticeGate.js';
-import { renderConversation } from '../src/view/renderConversation.js';
+import { renderConversationFrame } from '../src/view/renderConversation.js';
 
 class NoopLogger extends ILogger {
   public trace(): void {}
@@ -53,7 +53,7 @@ function applyConfigChange(gate: PermissionsNoticeGate, state: ConversationState
 }
 
 function permissionsNoticeRendered(state: ConversationState): boolean {
-  const lines = renderConversation(state, 80).map(stripAnsi);
+  const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
   return lines.some((line) => line.includes('Permissions'));
 }
 

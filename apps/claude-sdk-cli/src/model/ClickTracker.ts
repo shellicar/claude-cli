@@ -5,16 +5,16 @@ import type { ClickRegion } from './ClickRegion.js';
  * same target. A press remembers the region it landed on; a release resolves its own
  * coordinate and returns the pressed region when the two are the same target.
  *
- * Holding the press against the target rather than the coordinate is what makes a
- * scroll or a streaming repaint between the two refuse the click: the content moved
- * out from under a stationary pointer, so the release is no longer on what was
- * pressed. It also means a release tmux swallowed during a drag simply never fires.
+ * Holding the press against the target rather than the coordinate is what makes this
+ * self-correcting. Both ends resolve against whatever frame is on screen at the time, so
+ * a scroll or a streaming repaint between them needs no special handling: either the
+ * release lands on the same target, or it does not. A release tmux swallowed during a
+ * drag simply never fires.
  */
 /** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IClickTracker {
   public abstract press(region: ClickRegion | null): void;
   public abstract release(region: ClickRegion | null): ClickRegion | null;
-  public abstract clear(): void;
 }
 
 export class ClickTracker extends IClickTracker {
@@ -31,9 +31,5 @@ export class ClickTracker extends IClickTracker {
       return null;
     }
     return pressed;
-  }
-
-  public clear(): void {
-    this.#pressed = null;
   }
 }

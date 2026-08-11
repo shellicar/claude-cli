@@ -8,7 +8,7 @@ import { blockContentLines, CONTENT_INDENT } from '../model/blockLayout.js';
 import type { ClickRegion } from '../model/ClickRegion.js';
 import type { Block, IConversationState } from '../model/ConversationState.js';
 import { MIN_DIVIDER_WIDTH } from '../model/dividerWidths.js';
-import { type Laid, markdownContent, renderTokenLines, splitSealedTokens } from '../model/markdown/markdownLayout.js';
+import { type Laid, markdownContent, renderTokens, splitSealedTokens } from '../model/markdown/markdownLayout.js';
 import { formatDuration } from './formatDuration.js';
 
 const FILL = '\u2500';
@@ -61,11 +61,6 @@ export function renderBlockFrame(content: string, cols: number, indent: string =
   return markdown ? markdownContent(content, cols, indent, getHighlighted) : { lines: blockContentLines(content, cols, indent, getHighlighted), regions: [] };
 }
 
-/** The lines alone, for callers with nothing to do with the clickable spans. */
-export function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT, markdown = false): string[] {
-  return renderBlockFrame(content, cols, indent, markdown).lines;
-}
-
 /** Whether a block renders as markdown: `response` blocks, when the flag is on. */
 function blockRendersMarkdown(block: Block, markdown: MarkdownConfig | undefined): boolean {
   return markdown?.enabled === true && block.type === 'response';
@@ -110,9 +105,11 @@ type StreamingMarkdownCache = {
   cols: number;
   sealedRaw: string;
   sealedLines: string[];
+  sealedRegions: ClickRegion[];
   lastRunAt: number;
   decoratedContent: string;
   decoratedLines: string[];
+  decoratedRegions: ClickRegion[];
   // True when decoratedLines' last entry is the still-open tail's last wrapped row — i.e. safe to
   // continue appending raw text onto. False when the tail was empty at decoration time (content ended
   // exactly at a sealed boundary), in which case the last entry is sealed content (e.g. a closing fence
@@ -141,14 +138,16 @@ const streamingMarkdownCache = new WeakMap<Block, StreamingMarkdownCache>();
  * Keyed by block identity, like sealedContentCache; a fresh WeakMap entry per block means a new
  * response starts with no stale state from a previous one.
  */
-function renderStreamingMarkdown(block: Block, cols: number, indent: string, now: number): string[] {
+function renderStreamingMarkdown(block: Block, cols: number, indent: string, now: number): Laid {
   const hit = streamingMarkdownCache.get(block);
   const dueForRefresh = !hit || hit.cols !== cols || now - hit.lastRunAt >= MARKDOWN_REFRESH_MS || !block.content.startsWith(hit.decoratedContent);
 
   if (!dueForRefresh && hit) {
     const rawTail = block.content.slice(hit.decoratedContent.length);
     if (rawTail.length === 0) {
-      return hit.decoratedLines;
+      // A copy: the caller swaps the first line's indent for the block emoji, and the
+      // cached array would carry that swap into the next frame and slice it again.
+      return { lines: [...hit.decoratedLines], regions: hit.decoratedRegions };
     }
     // The raw tail's first fragment (up to its first \n, or all of it if there's none) continues
     // whatever was already on the last decorated line — it must be concatenated and rewrapped, not
@@ -166,17 +165,21 @@ function renderStreamingMarkdown(block: Block, cols: number, indent: string, now
     for (const fragment of fragments) {
       lines.push(...wrapLine(indent + fragment, cols));
     }
-    return lines;
+    // Raw appended text carries no code fence, so it adds no clickable span, and every
+    // span the decorated prefix holds keeps its row: only the last line is ever rewrapped.
+    return { lines, regions: hit.decoratedRegions };
   }
 
   const { sealed, tail } = splitSealedTokens(block.content);
   const sealedRaw = sealed.map((t) => t.raw ?? '').join('');
-  const sealedLines = hit && hit.cols === cols && hit.sealedRaw === sealedRaw ? hit.sealedLines : renderTokenLines(sealed, cols, indent, getHighlighted);
-  const tailLines = renderTokenLines(tail, cols, indent, getHighlighted);
-  const lines = [...sealedLines, ...tailLines];
+  const cached = hit && hit.cols === cols && hit.sealedRaw === sealedRaw;
+  const sealedLaid: Laid = cached ? { lines: hit.sealedLines, regions: hit.sealedRegions } : renderTokens(sealed, cols, indent, getHighlighted);
+  const tailLaid = renderTokens(tail, cols, indent, getHighlighted);
+  const lines = [...sealedLaid.lines, ...tailLaid.lines];
+  const regions = [...sealedLaid.regions, ...tailLaid.regions.map((region) => ({ ...region, row: region.row + sealedLaid.lines.length }))];
 
-  streamingMarkdownCache.set(block, { cols, sealedRaw, sealedLines, lastRunAt: now, decoratedContent: block.content, decoratedLines: lines, hasOpenLine: tailLines.length > 0 });
-  return lines;
+  streamingMarkdownCache.set(block, { cols, sealedRaw, sealedLines: sealedLaid.lines, sealedRegions: sealedLaid.regions, lastRunAt: now, decoratedContent: block.content, decoratedLines: lines, decoratedRegions: regions, hasOpenLine: tailLaid.lines.length > 0 });
+  return { lines, regions };
 }
 
 /**
@@ -201,11 +204,6 @@ export function renderBlockFrameCached(block: Block, content: string, cols: numb
   const laid = renderBlockFrame(content, cols, indent, markdown);
   sealedContentCache.set(block, { cols, content, markdown, lines: laid.lines, regions: laid.regions });
   return laid;
-}
-
-/** The lines alone, for callers with nothing to do with the clickable spans. */
-export function renderBlockContentCached(block: Block, content: string, cols: number, markdown: boolean): string[] {
-  return renderBlockFrameCached(block, content, cols, markdown).lines;
 }
 
 /**
@@ -294,9 +292,13 @@ export function renderConversationFrame(state: IConversationState, cols: number,
     if (streamingMarkdown) {
       // markdownContentLines indents every line; swap the first line's indent for
       // the block emoji so the active block keeps its leading marker.
-      const mdLines = renderStreamingMarkdown(state.activeBlock, cols, activeIndent, Date.now());
+      const streamed = renderStreamingMarkdown(state.activeBlock, cols, activeIndent, Date.now());
+      const mdLines = streamed.lines;
       if (mdLines.length > 0) {
         mdLines[0] = activeEmoji + mdLines[0].slice(activeIndent.length);
+      }
+      for (const region of streamed.regions) {
+        regions.push({ ...region, row: region.row + allContent.length });
       }
       allContent.push(...mdLines);
     } else {
@@ -309,15 +311,6 @@ export function renderConversationFrame(state: IConversationState, cols: number,
   }
 
   return { lines: allContent, regions };
-}
-
-/**
- * The transcript lines alone. The active streaming block contributes lines but never a
- * region: it is re-rendered incrementally between refreshes, so its rows are not stable
- * enough to address. Its icons become clickable when the block seals.
- */
-export function renderConversation(state: IConversationState, cols: number, markdown?: MarkdownConfig): string[] {
-  return renderConversationFrame(state, cols, markdown).lines;
 }
 
 /**
@@ -342,7 +335,7 @@ export function renderBlocksToString(allBlocks: ReadonlyArray<Block>, startIndex
       out += `${buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt))}\n\n`;
     }
     const blockIndent = block.type === 'notice' ? '' : CONTENT_INDENT;
-    for (const line of renderBlockContent(block.content, cols, blockIndent, blockRendersMarkdown(block, markdown))) {
+    for (const line of renderBlockFrame(block.content, cols, blockIndent, blockRendersMarkdown(block, markdown)).lines) {
       out += `${line}\n`;
     }
     if (!hasNextContinuation) {
