@@ -82,16 +82,38 @@ describe('a sealed block carries a copy affordance on its header', () => {
     const actual = renderConversationFrame(sealed({ type: 'thinking', content: 'pondering' }, { type: 'response', content: 'hello' }), 80).regions.length;
     expect(actual).toBe(expected);
   });
+});
 
-  it('copies the whole run when same-type blocks share one header', () => {
-    const expected = 'onetwo';
-    const actual = renderConversationFrame(sealed({ type: 'response', content: 'one' }, { type: 'response', content: 'two' }), 80).regions[0]?.text;
+describe('a block of tool calls copies the calls, not its summary', () => {
+  it('copies each invocation with its input', () => {
+    const expected = JSON.stringify([{ name: 'ExecV3', input: { intent: 'look' } }], null, 2);
+    const state = buildConversationState();
+    state.transitionBlock('tools');
+    state.appendToActive('\u2192 ExecV3');
+    state.setLastTools('tools', '\u2192 ExecV3', [{ name: 'ExecV3', input: { intent: 'look' }, output: null, kind: 'client', phase: 'ok' }]);
+    state.transitionBlock('response');
+    const actual = renderConversationFrame(state, 80).regions[0]?.text;
     expect(actual).toBe(expected);
   });
 
-  it('draws one affordance for a run sharing one header', () => {
-    const expected = 1;
-    const actual = renderConversationFrame(sealed({ type: 'response', content: 'one' }, { type: 'response', content: 'two' }), 80).regions.length;
+  it('copies each result with its output', () => {
+    const expected = JSON.stringify([{ name: 'ExecV3', output: 'done' }], null, 2);
+    const state = buildConversationState();
+    state.transitionBlock('execution');
+    state.appendToActive('\u21a9 1 result');
+    state.setLastTools('execution', '\u21a9 1 result', [{ name: 'ExecV3', input: { intent: 'look' }, output: 'done', kind: 'client', phase: 'ok' }]);
+    state.transitionBlock('response');
+    const actual = renderConversationFrame(state, 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('falls back to the summary when the block carries no calls', () => {
+    const expected = '\u2192 ExecV3';
+    const state = buildConversationState();
+    state.transitionBlock('tools');
+    state.appendToActive('\u2192 ExecV3');
+    state.transitionBlock('response');
+    const actual = renderConversationFrame(state, 80).regions[0]?.text;
     expect(actual).toBe(expected);
   });
 });

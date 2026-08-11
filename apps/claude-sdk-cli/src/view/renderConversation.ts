@@ -247,13 +247,25 @@ export function buildBlockDivider(displayLabel: string, cols: number, timestamps
   return { line: `${bare} ${ACCENT}${COPY_ICON}${RESET}`, iconCol: stringWidth(bare) + 1 };
 }
 
-/** The content of the run of same-type blocks starting at `start`, as it reads on screen. */
-function runContent(blocks: ReadonlyArray<Block>, start: number): string {
-  const parts: string[] = [];
-  for (let i = start; i < blocks.length && blocks[i]?.type === blocks[start]?.type; i++) {
-    parts.push(blocks[i]?.content ?? '');
+/**
+ * What a block's copy affordance puts on the clipboard.
+ *
+ * A tools or execution block shows a one-line summary of the calls it made, which is
+ * useless pasted anywhere, so it copies the calls themselves as JSON: a tools block is
+ * the invocation side and carries each call's name and input, an execution block is the
+ * result side and carries each call's name and output. Every other block copies its own
+ * content, which is what it displays.
+ */
+function copyPayload(block: Block): string {
+  if (block.type !== 'tools' && block.type !== 'execution') {
+    return block.content;
   }
-  return parts.join('');
+  const entries = block.tools ?? [];
+  if (entries.length === 0) {
+    return block.content;
+  }
+  const calls = block.type === 'tools' ? entries.map((entry) => ({ name: entry.name, input: entry.input })) : entries.map((entry) => ({ name: entry.name, output: entry.output }));
+  return JSON.stringify(calls, null, 2);
 }
 
 /**
@@ -282,9 +294,7 @@ export function renderConversationFrame(state: IConversationState, cols: number,
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       const header = buildBlockDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt));
-      // Consecutive same-type blocks render under this one header as a single visible
-      // section, so its icon copies the whole run rather than the first block of it.
-      regions.push({ row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: runContent(sealedBlocks, i) });
+      regions.push({ row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: copyPayload(block) });
       allContent.push(header.line);
       allContent.push('');
     }
