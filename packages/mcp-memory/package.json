@@ -42,7 +42,7 @@
     "@js-joda/locale_en": "^4.15.3",
     "@js-joda/timezone": "^2.25.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@shellicar/core-di": "^5.0.0-alpha.3",
+    "@shellicar/core-di": "^5.0.0-alpha.6",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -53,7 +53,7 @@
     "@shellicar/typescript-config": "workspace:^",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^26.2.0",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.2",
     "tsup": "^8.5.1",
     "tsx": "^4.22.5",
     "typescript": "^5.9.3",

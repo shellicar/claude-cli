@@ -51,7 +51,7 @@
     "@shellicar/typescript-config": "workspace:^",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^26.2.0",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.2",
     "tsup": "^8.5.1",
     "tsx": "^4.22.5",
     "typescript": "^5.9.3",
