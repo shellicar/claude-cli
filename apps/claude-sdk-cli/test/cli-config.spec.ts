@@ -37,6 +37,7 @@ describe('sdkConfigSchema', () => {
         },
         workspace: { enabled: true },
         preventSleep: { enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } },
+        http: { allowH2: false },
         persistence: { database: 'persistence.db' },
         markdown: { enabled: true, streaming: true },
         memory: { tenantId: null, environment: {}, git: { enabled: true } },
