@@ -64,7 +64,7 @@ const serialiseErrors = (value: unknown): unknown => {
       name: value.name,
       message: value.message,
       stack: value.stack,
-      ...(value.cause === undefined ? {} : { cause: serialiseErrors(value.cause) }),
+      cause: serialiseErrors(value.cause),
     };
   }
   if (Array.isArray(value)) {

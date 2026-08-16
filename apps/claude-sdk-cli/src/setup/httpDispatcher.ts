@@ -8,7 +8,7 @@ type ConnectedEvent = { socket?: { alpnProtocol?: string | false; servername?: s
 export const createHttpDispatcher = (allowH2: boolean, logger: ILogger): Agent => {
   diagnostics_channel.subscribe('undici:client:connected', (event) => {
     const socket = (event as ConnectedEvent)?.socket;
-    logger.info('connection established', { alpn: socket?.alpnProtocol || 'http/1.1', host: socket?.servername ?? null, allowH2 });
+    logger.info('connection established', { alpn: socket?.alpnProtocol ?? null, host: socket?.servername ?? null, allowH2 });
   });
   return new Agent({ allowH2 });
 };

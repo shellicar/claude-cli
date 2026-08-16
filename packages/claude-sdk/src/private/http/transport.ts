@@ -39,10 +39,7 @@ export async function* streamMessages(params: TransportParams): AsyncGenerator<B
     ...params.requestHeaders,
   };
 
-  const init: RequestInit = { method: 'POST', headers, body: JSON.stringify(params.body), signal };
-  if (params.dispatcher != null) {
-    init.dispatcher = params.dispatcher;
-  }
+  const init: RequestInit = { method: 'POST', headers, body: JSON.stringify(params.body), signal, dispatcher: params.dispatcher };
 
   let response: Response;
   try {
