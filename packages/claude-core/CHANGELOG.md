@@ -39,10 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A downscaled image keeps its source format rather than being re-encoded as PNG, which inflated photographs about fourfold. A webp is the exception and becomes a png, because sips reads webp but cannot write it
 - Config merge now recurses arbitrarily deep instead of stopping after one nested level, so a local override several levels down (e.g. one entry of a nested record) no longer silently replaces its whole containing object and drops its siblings
 - Fix a perceived ~500ms lag on every Escape keypress: a raw stdin chunk containing only the ESC byte is now emitted immediately as an escape KeyAction instead of waiting on readline's internal CSI-sequence disambiguation timeout
 - Fix absent-file and inode-swap defects in config file watching
 - Fix version metadata
 - Package now publishes CJS alongside ESM with working sourcemaps
+- Preserve image format when downscaling
 - Re-establish ANSI colour state on wrapped continuation lines
