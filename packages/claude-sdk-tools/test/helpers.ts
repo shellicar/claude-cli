@@ -6,7 +6,7 @@ import type { z } from 'zod';
 /** Test double: sips unavailable, so ReadFile images pass through unconditioned. */
 export const passthroughSips: SipsBridge = {
   dimensions: () => Promise.reject(new Error('no sips in tests')),
-  resizeToPng: () => Promise.reject(new Error('no sips in tests')),
+  resize: () => Promise.reject(new Error('no sips in tests')),
 };
 
 /** Test double: a logger that discards everything, so the tool builds without the app's logger. */

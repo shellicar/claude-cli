@@ -1,37 +1,62 @@
 import { describe, expect, it } from 'vitest';
+import type { ImageMediaType } from '../src/image/conditionImage';
 import { buildDimensionArgs, buildResizeArgs, conditionImage, parseDimensions } from '../src/image/conditionImage';
-import type { SipsBridge } from '../src/image/SipsBridge';
+import type { SipsBridge, SipsFormat } from '../src/image/SipsBridge';
 import type { ILogger } from '../src/logging/ILogger';
 
 const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
-const PNG_BYTES = Buffer.from('conditioned-png-bytes');
+const RESIZED_BYTES = Buffer.from('conditioned-bytes');
 
 const resizes: SipsBridge = {
   dimensions: () => Promise.resolve({ width: 4000, height: 3000 }),
-  resizeToPng: () => Promise.resolve(PNG_BYTES),
+  resize: () => Promise.resolve(RESIZED_BYTES),
 };
 const smallEnough: SipsBridge = {
   dimensions: () => Promise.resolve({ width: 1500, height: 800 }),
-  resizeToPng: () => Promise.reject(new Error('resize must not be called for a small image')),
+  resize: () => Promise.reject(new Error('resize must not be called for a small image')),
 };
 const absent: SipsBridge = {
   dimensions: () => Promise.reject(new Error('spawn sips ENOENT')),
-  resizeToPng: () => Promise.reject(new Error('spawn sips ENOENT')),
+  resize: () => Promise.reject(new Error('spawn sips ENOENT')),
 };
 const notInvocable: SipsBridge = {
   dimensions: () => Promise.reject(new Error('spawn sips EACCES')),
-  resizeToPng: () => Promise.reject(new Error('spawn sips EACCES')),
+  resize: () => Promise.reject(new Error('spawn sips EACCES')),
 };
 const failsOnImage: SipsBridge = {
   dimensions: () => Promise.resolve({ width: 4000, height: 3000 }),
-  resizeToPng: () => Promise.reject(new Error('sips exited 13')),
+  resize: () => Promise.reject(new Error('sips exited 13')),
+};
+
+/** Records the format sips was asked to produce, so the mapping can be asserted at the boundary. */
+const recordingBridge = () => {
+  const formats: SipsFormat[] = [];
+  const bridge: SipsBridge = {
+    dimensions: () => Promise.resolve({ width: 4000, height: 3000 }),
+    resize: (_input, format) => {
+      formats.push(format);
+      return Promise.resolve(RESIZED_BYTES);
+    },
+  };
+  return { bridge, formats };
+};
+
+const formatAskedFor = async (mediaType: ImageMediaType): Promise<SipsFormat | undefined> => {
+  const { bridge, formats } = recordingBridge();
+  await conditionImage(Buffer.from('orig'), mediaType, bridge, noopLogger);
+  return formats[0];
+};
+
+const mediaTypeReturned = async (mediaType: ImageMediaType): Promise<ImageMediaType> => {
+  const { mediaType: actual } = await conditionImage(Buffer.from('orig'), mediaType, resizes, noopLogger);
+  return actual;
 };
 
 describe('buildResizeArgs', () => {
-  it('builds a 2000px downscale-to-PNG sips invocation', () => {
-    const expected = ['-Z', '2000', '-s', 'format', 'png', '/tmp/in', '--out', '/tmp/out.png'];
-    const actual = buildResizeArgs('/tmp/in', '/tmp/out.png');
+  it('builds a 2000px downscale invocation in the requested format', () => {
+    const expected = ['-Z', '2000', '-s', 'format', 'jpeg', '/tmp/in', '--out', '/tmp/out.jpeg'];
+    const actual = buildResizeArgs('/tmp/in', '/tmp/out.jpeg', 'jpeg');
     expect(actual).toEqual(expected);
   });
 });
@@ -54,14 +79,60 @@ describe('parseDimensions', () => {
 
 describe('conditionImage — resizes an oversized image', () => {
   it('uses the conditioned bytes', async () => {
-    const expected = PNG_BYTES;
+    const expected = RESIZED_BYTES;
     const { data: actual } = await conditionImage(Buffer.from('orig'), 'image/jpeg', resizes, noopLogger);
     expect(actual).toBe(expected);
   });
+});
 
-  it('reports image/png after resizing', async () => {
+describe('conditionImage — the format it asks sips to produce', () => {
+  it('re-encodes a jpeg as jpeg', async () => {
+    const expected = 'jpeg';
+    const actual = await formatAskedFor('image/jpeg');
+    expect(actual).toBe(expected);
+  });
+
+  it('re-encodes a png as png', async () => {
+    const expected = 'png';
+    const actual = await formatAskedFor('image/png');
+    expect(actual).toBe(expected);
+  });
+
+  it('re-encodes a gif as gif', async () => {
+    const expected = 'gif';
+    const actual = await formatAskedFor('image/gif');
+    expect(actual).toBe(expected);
+  });
+
+  it('re-encodes a webp as png, which sips can write', async () => {
+    const expected = 'png';
+    const actual = await formatAskedFor('image/webp');
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('conditionImage — the media type it reports after resizing', () => {
+  it('reports image/jpeg for a jpeg', async () => {
+    const expected = 'image/jpeg';
+    const actual = await mediaTypeReturned('image/jpeg');
+    expect(actual).toBe(expected);
+  });
+
+  it('reports image/png for a png', async () => {
     const expected = 'image/png';
-    const { mediaType: actual } = await conditionImage(Buffer.from('orig'), 'image/jpeg', resizes, noopLogger);
+    const actual = await mediaTypeReturned('image/png');
+    expect(actual).toBe(expected);
+  });
+
+  it('reports image/gif for a gif', async () => {
+    const expected = 'image/gif';
+    const actual = await mediaTypeReturned('image/gif');
+    expect(actual).toBe(expected);
+  });
+
+  it('reports image/png for a webp', async () => {
+    const expected = 'image/png';
+    const actual = await mediaTypeReturned('image/webp');
     expect(actual).toBe(expected);
   });
 });

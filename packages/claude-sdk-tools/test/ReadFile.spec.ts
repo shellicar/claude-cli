@@ -516,7 +516,7 @@ import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 
 const neverSips: SipsBridge = {
   dimensions: () => Promise.reject(new Error('sips must not run for a non-image')),
-  resizeToPng: () => Promise.reject(new Error('sips must not run for a non-image')),
+  resize: () => Promise.reject(new Error('sips must not run for a non-image')),
 };
 
 describe('createReadFile — conditioning leaves non-images alone', () => {
@@ -532,29 +532,29 @@ describe('createReadFile — conditioning leaves non-images alone', () => {
   });
 });
 
-const conditionedPng = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xaa, 0xbb]);
+const conditionedBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xaa, 0xbb]);
 const resizes: SipsBridge = {
   dimensions: () => Promise.resolve({ width: 4000, height: 3000 }),
-  resizeToPng: () => Promise.resolve(conditionedPng),
+  resize: () => Promise.resolve(conditionedBytes),
 };
 
 describe('createReadFile — conditions an oversized image', () => {
-  it('emits the conditioned PNG bytes', async () => {
+  it('emits the conditioned bytes', async () => {
     const fs = new MemoryFileSystem({ '/images/big.jpg': jpegMagic });
     const ReadFile = createReadFile(fs, resizes, noopLogger);
     const result = await callFull(ReadFile, { path: '/images/big.jpg', mimeType: 'image/*' });
 
-    const expected = conditionedPng.toString('base64');
+    const expected = conditionedBytes.toString('base64');
     const actual = result.attachments?.[0]?.source.data;
     expect(actual).toBe(expected);
   });
 
-  it('re-labels the conditioned image as image/png', async () => {
+  it('keeps a conditioned jpeg labelled as image/jpeg', async () => {
     const fs = new MemoryFileSystem({ '/images/big.jpg': jpegMagic });
     const ReadFile = createReadFile(fs, resizes, noopLogger);
     const result = await callFull(ReadFile, { path: '/images/big.jpg', mimeType: 'image/*' });
 
-    const expected = 'image/png';
+    const expected = 'image/jpeg';
     const actual = result.attachments?.[0]?.source.media_type;
     expect(actual).toBe(expected);
   });
