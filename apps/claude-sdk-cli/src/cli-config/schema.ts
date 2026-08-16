@@ -280,14 +280,7 @@ const preventSleepSchema = z
 
 const httpSchema = z
   .object({
-    allowH2: z
-      .boolean()
-      .optional()
-      .default(false)
-      .catch(false)
-      .describe(
-        'Allow HTTP/2 for API requests. Node 26 (undici 8) enables it by default, and an over-limit request is then reset at the protocol layer with an opaque ENHANCE_YOUR_CALM stream error carrying no status and no body, which the retry loop cannot distinguish from a transient network failure. Disabled forces HTTP/1.1, where the same request is answered with a readable status such as 413 and a typed error body.',
-      ),
+    allowH2: z.boolean().optional().default(false).catch(false).describe('Allow HTTP/2 for API requests. Off by default, so requests negotiate HTTP/1.1.'),
   })
   .optional()
   .default({ allowH2: false })

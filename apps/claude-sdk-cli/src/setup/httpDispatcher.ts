@@ -4,7 +4,7 @@ import { Agent } from 'undici';
 
 type ConnectedEvent = { socket?: { alpnProtocol?: string | false; servername?: string } };
 
-/** Logs the protocol each connection negotiates, because it is otherwise invisible: undici 8 (Node 26) enables HTTP/2 by default, where an over-limit request is reset with an opaque stream error carrying no status instead of a readable 413. */
+/** The negotiated protocol is not otherwise observable, so each connection logs it. */
 export const createHttpDispatcher = (allowH2: boolean, logger: ILogger): Agent => {
   diagnostics_channel.subscribe('undici:client:connected', (event) => {
     const socket = (event as ConnectedEvent)?.socket;

@@ -175,6 +175,6 @@
 {"description":"Deleting a symlink inside the scratchpad is now approved. Removing a link never touches what it points at, so judging the delete by its destination made any link Claude created in its own scratchpad permanently undeletable. Writes still follow a link to where they land, and a delete whose parent directory resolves outside the scratchpad is still refused","category":"fixed"}
 {"description":"Render markdown tables in a response, honouring column alignment","category":"added"}
 {"description":"Fix a fenced code block drawing its border in the wrong place when it holds a link or a wide character","category":"fixed"}
-{"description":"New http.allowH2 setting, off by default, so API requests negotiate HTTP/1.1. Over HTTP/2 a request that exceeds the API's size limit is reset at the protocol layer with no status and no body, which is indistinguishable from a transient network failure and was retried ten times before giving up; over HTTP/1.1 the same request is answered with a readable 413 and refused immediately","category":"added"}
-{"description":"An error written to the log no longer renders as an empty object. An Error keeps its name, message, stack and cause as non-enumerable properties, so every logged error lost everything it carried; the underlying cause, such as a socket or protocol error code, is now recorded","category":"fixed"}
-{"description":"Each connection logs the HTTP protocol it negotiated, so a change of protocol is visible rather than silent","category":"added"}
+{"description":"New http.allowH2 setting, off by default, so API requests negotiate HTTP/1.1","category":"added"}
+{"description":"An error written to the log keeps its name, message, stack and cause instead of rendering as an empty object","category":"fixed"}
+{"description":"Each connection logs the HTTP protocol it negotiated","category":"added"}
