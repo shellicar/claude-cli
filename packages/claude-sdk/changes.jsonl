@@ -69,3 +69,5 @@
 {"description":"Stored credentials and the browser login are now separate services a consumer resolves and can substitute (ICredentialProvider and ILoginFlow), replacing AnthropicAuth. A per-request caller holds the credential provider, which cannot open a browser","category":"changed"}
 {"description":"The OAuth callback's state is checked against the authorisation request it was built for, so a callback arriving from anywhere else is refused instead of exchanged","category":"security"}
 {"description":"DurableConfig gains conversationReminders, for standing facts about the current conversation. They are injected and re-injected exactly as cachedReminders are, but sit after them, so the prefix cache marker still falls on the last cached block and a per-conversation value cannot cost the shared prefix its reuse","category":"added"}
+{"description":"Failed API requests are logged with their cause, how they were classified, and each retry attempt and delay","category":"added"}
+{"description":"AnthropicClient accepts an undici Dispatcher, so a consumer chooses the HTTP protocol its requests negotiate","category":"added"}

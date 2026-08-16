@@ -1,4 +1,6 @@
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import type { Dispatcher } from 'undici';
 import { ConnectionError, HttpError, parseRetryAfter, StreamInterruptedError, safeReadBody, TimeoutError, TransportError } from './errors';
 import { parseSse } from './sse';
 
@@ -13,6 +15,8 @@ export type TransportParams = {
   authToken: () => Promise<string>;
   fetch: typeof fetch;
   defaultHeaders: Record<string, string>;
+  logger?: ILogger;
+  dispatcher?: Dispatcher;
 };
 
 /**
@@ -35,27 +39,35 @@ export async function* streamMessages(params: TransportParams): AsyncGenerator<B
     ...params.requestHeaders,
   };
 
+  const init: RequestInit = { method: 'POST', headers, body: JSON.stringify(params.body), signal, dispatcher: params.dispatcher };
+
   let response: Response;
   try {
-    response = await params.fetch(ANTHROPIC_URL, { method: 'POST', headers, body: JSON.stringify(params.body), signal });
+    response = await params.fetch(ANTHROPIC_URL, init);
   } catch (err) {
     if (params.signal?.aborted) {
+      params.logger?.debug('transport: connect aborted by caller');
       throw params.signal.reason;
     }
     if (timeout.aborted) {
+      params.logger?.error('transport: connect timed out', { timeoutMs: STREAM_TIMEOUT_MS, error: err });
       throw new TimeoutError('Request timed out');
     }
+    params.logger?.error('transport: connect failed', { error: err });
     throw new ConnectionError('Connection error', { cause: err });
   }
 
   if (!response.ok) {
     const retryAfterMs = parseRetryAfter(response.headers);
     const body = await safeReadBody(response);
+    params.logger?.error('transport: http error response', { status: response.status, statusText: response.statusText, retryAfterMs, body });
     throw new HttpError(response.status, retryAfterMs, body, response.headers);
   }
   if (response.body == null) {
+    params.logger?.error('transport: response had no body', { status: response.status });
     throw new ConnectionError('Response had no body');
   }
+  params.logger?.debug('transport: stream open', { status: response.status });
 
   try {
     for await (const event of parseSse(response.body)) {
@@ -69,14 +81,18 @@ export async function* streamMessages(params: TransportParams): AsyncGenerator<B
     // reader.read() after the 200 OK — the undici `terminated` on sleep/wake.
     // Wrap it so the retry loop treats it as a retryable interruption.
     if (params.signal?.aborted) {
+      params.logger?.debug('transport: stream aborted by caller');
       throw params.signal.reason;
     }
     if (timeout.aborted) {
+      params.logger?.error('transport: stream timed out', { timeoutMs: STREAM_TIMEOUT_MS, error: err });
       throw new TimeoutError('Request timed out');
     }
     if (err instanceof TransportError) {
+      params.logger?.error('transport: stream error', { error: err });
       throw err;
     }
+    params.logger?.error('transport: stream socket died mid-response', { error: err });
     throw new StreamInterruptedError({ cause: err });
   }
 }

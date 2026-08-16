@@ -186,18 +186,24 @@ export class TurnRunner extends ITurnRunner {
           this.requestClock.requestSettled(false);
           // ESC during the request: a normal in-flight cancel, never retried.
           if (turnInput.abortSignal.aborted) {
+            this.logger.debug('request cancelled in flight');
             throw err;
           }
+
+          this.logger.warn('request failed', { error: err, retryable: isRetryable(err), transientAttempt, streamInterruptAttempt });
 
           // Account-limit 429 (retry-after exceeds the 60s cap): non-transient.
           // The give-up decision is made immediately after each 429, before any wait.
           if (isAccountLimit(err, RETRY_AFTER_CAP_MS)) {
             const now = this.clock.instant();
             firstAccountLimitAt ??= now;
-            if (Duration.between(firstAccountLimitAt, now).toMillis() >= ACCOUNT_LIMIT_BUDGET_MS) {
+            const waitedMs = Duration.between(firstAccountLimitAt, now).toMillis();
+            if (waitedMs >= ACCOUNT_LIMIT_BUDGET_MS) {
+              this.logger.error('account limit; budget exhausted, giving up', { waitedMs, budgetMs: ACCOUNT_LIMIT_BUDGET_MS });
               this.accountLimit.stopped();
               throw new AccountLimitStoppedError();
             }
+            this.logger.warn('account limit; waiting', { waitedMs, budgetMs: ACCOUNT_LIMIT_BUDGET_MS, delayMs: RETRY_AFTER_CAP_MS });
             this.accountLimit.retrying();
             await this.sleeper.sleep(RETRY_AFTER_CAP_MS, turnInput.abortSignal);
             if (turnInput.abortSignal.aborted) {
@@ -214,9 +220,10 @@ export class TurnRunner extends ITurnRunner {
           if (err instanceof StreamInterruptedError) {
             streamInterruptAttempt++;
             if (streamInterruptAttempt > STREAM_INTERRUPT_MAX_RETRIES) {
+              this.logger.error('stream interrupted; retries exhausted', { attempt: streamInterruptAttempt, maxRetries: STREAM_INTERRUPT_MAX_RETRIES });
               throw err;
             }
-            this.logger.warn('stream interrupted; reconnecting', { attempt: streamInterruptAttempt });
+            this.logger.warn('stream interrupted; reconnecting', { attempt: streamInterruptAttempt, maxRetries: STREAM_INTERRUPT_MAX_RETRIES, delayMs: STREAM_INTERRUPT_DELAY_MS });
             this.interruption.reconnecting();
             await this.sleeper.sleep(STREAM_INTERRUPT_DELAY_MS, turnInput.abortSignal);
             if (turnInput.abortSignal.aborted) {
@@ -228,12 +235,12 @@ export class TurnRunner extends ITurnRunner {
           // Other transient errors: existing exponential backoff + jitter, bounded.
           transientAttempt++;
           if (!isRetryable(err) || transientAttempt > MAX_RETRIES) {
+            this.logger.error('giving up', { reason: isRetryable(err) ? 'retries exhausted' : 'not retryable', attempt: transientAttempt, maxRetries: MAX_RETRIES });
             throw err;
           }
-          await this.sleeper.sleep(
-            calculateBackoffDelay(transientAttempt, () => this.random.next()),
-            turnInput.abortSignal,
-          );
+          const delayMs = calculateBackoffDelay(transientAttempt, () => this.random.next());
+          this.logger.warn('retrying after backoff', { attempt: transientAttempt, maxRetries: MAX_RETRIES, delayMs });
+          await this.sleeper.sleep(delayMs, turnInput.abortSignal);
           if (turnInput.abortSignal.aborted) {
             // On abort, surface a standard cancel: throwIfAborted() throws signal.reason
             // (a DOMException when abort() has no reason). Deliberately not the SDK's

@@ -756,6 +756,20 @@
         }
       }
     },
+    "http": {
+      "default": {
+        "allowH2": false
+      },
+      "description": "HTTP transport configuration",
+      "type": "object",
+      "properties": {
+        "allowH2": {
+          "default": false,
+          "description": "Allow HTTP/2 for API requests. Off by default, so requests negotiate HTTP/1.1.",
+          "type": "boolean"
+        }
+      }
+    },
     "persistence": {
       "default": {
         "database": "persistence.db"

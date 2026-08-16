@@ -172,6 +172,7 @@ import { ConversationSwitcher, IConversationSwitcher } from './ConversationSwitc
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
 import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js';
+import { createHttpDispatcher } from './httpDispatcher.js';
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
@@ -399,7 +400,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(LoginFlow).as(ILoginFlow);
   services
     .register(AnthropicClient)
-    .using([ICredentialProvider, ILogger], (credentials, log) => new AnthropicClient(credentials, log))
+    .using([ICredentialProvider, ILogger, ConfigLoader], (credentials, log, loader) => new AnthropicClient(credentials, log, createHttpDispatcher(loader.config.http.allowH2, log)))
     .as(IMessageStreamer);
   services
     .register(ModelCatalog)

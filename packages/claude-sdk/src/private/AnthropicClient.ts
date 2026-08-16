@@ -2,6 +2,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import versionJson from '@shellicar/build-version/version';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import type { Dispatcher } from 'undici';
 import type { ICredentialProvider } from './Client/Auth/interfaces';
 import { customFetch } from './http/customFetch';
 import { streamMessages } from './http/transport';
@@ -22,6 +23,8 @@ import { type IMessageStream, IMessageStreamer } from './MessageStreamer';
 export class AnthropicClient extends IMessageStreamer {
   readonly #credentials: ICredentialProvider;
   readonly #fetch: typeof fetch;
+  readonly #logger: ILogger;
+  readonly #dispatcher: Dispatcher | undefined;
   readonly #defaultHeaders: Record<string, string> = {
     'user-agent': `@shellicar/claude-sdk/${versionJson.version}`,
   };
@@ -29,9 +32,11 @@ export class AnthropicClient extends IMessageStreamer {
   // The fetch wrapper is built once, eagerly, so a setup failure surfaces at
   // composition (buildProvider) rather than on the first request. The app's
   // composition root supplies the auth and logger through the factory.
-  public constructor(credentials: ICredentialProvider, logger: ILogger) {
+  public constructor(credentials: ICredentialProvider, logger: ILogger, dispatcher?: Dispatcher) {
     super();
     this.#credentials = credentials;
+    this.#logger = logger;
+    this.#dispatcher = dispatcher;
     this.#fetch = customFetch(logger) as typeof fetch;
   }
 
@@ -45,6 +50,8 @@ export class AnthropicClient extends IMessageStreamer {
       authToken: this.#authToken,
       fetch: this.#fetch,
       defaultHeaders: this.#defaultHeaders,
+      logger: this.#logger,
+      dispatcher: this.#dispatcher,
     });
   }
 }

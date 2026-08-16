@@ -278,6 +278,14 @@ const preventSleepSchema = z
   .default({ enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } })
   .catch({ enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } });
 
+const httpSchema = z
+  .object({
+    allowH2: z.boolean().optional().default(false).catch(false).describe('Allow HTTP/2 for API requests. Off by default, so requests negotiate HTTP/1.1.'),
+  })
+  .optional()
+  .default({ allowH2: false })
+  .catch({ allowH2: false });
+
 const secretsSchema = z
   .object({
     stripGhCredentials: z
@@ -392,6 +400,7 @@ export const sdkConfigSchema = z
     permissions: permissionsSchema.describe('Tool approval permission matrix'),
     workspace: workspaceSchema.describe('Scratchpad directory configuration'),
     preventSleep: preventSleepSchema.describe('Sleep prevention during in-flight network requests'),
+    http: httpSchema.describe('HTTP transport configuration'),
     persistence: persistenceSchema.describe('Persistence (SQLite) configuration'),
     markdown: markdownSchema.describe('Markdown rendering configuration'),
     memory: memorySchema.describe('Persistent memory configuration'),

@@ -1,5 +1,5 @@
 import winston from 'winston';
-import { redact } from './redact';
+import { isPlainObject, redact } from './redact';
 
 const levels = { error: 0, warn: 1, info: 2, debug: 3, trace: 4 };
 const colors = { error: 'red', warn: 'yellow', info: 'green', debug: 'blue', trace: 'gray' };
@@ -55,9 +55,30 @@ const winstonLogger = winston.createLogger({
   transports,
 }) as winston.Logger & { trace: winston.LeveledLogMethod };
 
+// An Error's name, message, stack and cause are non-enumerable, so JSON.stringify
+// renders one as `{}`. Flatten it to a plain object before it reaches the format.
+const serialiseErrors = (value: unknown): unknown => {
+  if (value instanceof Error) {
+    return {
+      ...(serialiseErrors({ ...value }) as object),
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+      cause: serialiseErrors(value.cause),
+    };
+  }
+  if (Array.isArray(value)) {
+    return value.map(serialiseErrors);
+  }
+  if (isPlainObject(value)) {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, serialiseErrors(v)]));
+  }
+  return value;
+};
+
 const wrapMeta = (meta: unknown[]): object => {
   const wrapped = meta.length === 0 ? {} : meta.length === 1 ? { data: meta[0] } : { data: meta };
-  return redact(wrapped) as object;
+  return redact(serialiseErrors(wrapped)) as object;
 };
 
 export const logger = {
