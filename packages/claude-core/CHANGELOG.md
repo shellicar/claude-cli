@@ -44,4 +44,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix absent-file and inode-swap defects in config file watching
 - Fix version metadata
 - Package now publishes CJS alongside ESM with working sourcemaps
+- Preserve image format when downscaling
 - Re-establish ANSI colour state on wrapped continuation lines

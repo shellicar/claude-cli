@@ -81,7 +81,7 @@ function makeTurnClock(): ITurnClock {
 /** Test double: sips unavailable, so pasted images pass through unconditioned. */
 const passthroughSips: SipsBridge = {
   dimensions: () => Promise.reject(new Error('no sips in tests')),
-  resizeToPng: () => Promise.reject(new Error('no sips in tests')),
+  resize: () => Promise.reject(new Error('no sips in tests')),
 };
 
 /** Test double: a logger that discards everything, so the executor resolves without the app's logger. */

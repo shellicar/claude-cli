@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { buildDimensionArgs, buildResizeArgs, parseDimensions } from './conditionImage.js';
-import { type ImageDimensions, SipsBridge } from './SipsBridge.js';
+import { type ImageDimensions, SipsBridge, type SipsFormat } from './SipsBridge.js';
 
 const execFileAsync = promisify(execFile);
 const SIPS_TIMEOUT_MS = 10_000;
@@ -26,12 +26,12 @@ export class NodeSipsBridge extends SipsBridge {
     });
   }
 
-  public async resizeToPng(input: Buffer): Promise<Buffer> {
+  public async resize(input: Buffer, format: SipsFormat): Promise<Buffer> {
     return this.#withTempDir(async (dir) => {
       const inputPath = join(dir, 'input');
-      const outputPath = join(dir, 'output.png');
+      const outputPath = join(dir, `output.${format}`);
       await writeFile(inputPath, input);
-      await execFileAsync('sips', buildResizeArgs(inputPath, outputPath), { timeout: SIPS_TIMEOUT_MS });
+      await execFileAsync('sips', buildResizeArgs(inputPath, outputPath, format), { timeout: SIPS_TIMEOUT_MS });
       return readFile(outputPath);
     });
   }

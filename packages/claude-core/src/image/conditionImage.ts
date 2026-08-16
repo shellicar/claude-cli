@@ -1,5 +1,5 @@
 import type { ILogger } from '../logging/ILogger.js';
-import type { SipsBridge } from './SipsBridge.js';
+import type { SipsBridge, SipsFormat } from './SipsBridge.js';
 
 /** The image media types both attach paths already emit (paste: clipboard.ts detectMediaType; ReadFile: file-type sniff). */
 export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
@@ -15,10 +15,18 @@ export function buildDimensionArgs(inputPath: string): string[] {
   return ['-g', 'pixelWidth', '-g', 'pixelHeight', inputPath];
 }
 
-/** sips argument vector that downscales to a <=2000px long edge (aspect kept) and re-encodes as PNG.
+/** Re-encode target per source type. webp maps to png because sips reads webp but cannot write it. */
+export const RESIZE_OUTPUT = {
+  'image/jpeg': { format: 'jpeg', mediaType: 'image/jpeg' },
+  'image/png': { format: 'png', mediaType: 'image/png' },
+  'image/gif': { format: 'gif', mediaType: 'image/gif' },
+  'image/webp': { format: 'png', mediaType: 'image/png' },
+} as const satisfies Record<ImageMediaType, { format: SipsFormat; mediaType: ImageMediaType }>;
+
+/** sips argument vector that downscales to a <=2000px long edge (aspect kept) and re-encodes as `format`.
  *  `-Z` never enlarges *once gated by dimensions* — it is only ever invoked here for an oversized image. */
-export function buildResizeArgs(inputPath: string, outputPath: string): string[] {
-  return ['-Z', String(MAX_LONG_EDGE), '-s', 'format', 'png', inputPath, '--out', outputPath];
+export function buildResizeArgs(inputPath: string, outputPath: string, format: SipsFormat): string[] {
+  return ['-Z', String(MAX_LONG_EDGE), '-s', 'format', format, inputPath, '--out', outputPath];
 }
 
 /** Parse `pixelWidth: N` / `pixelHeight: N` out of `sips -g` stdout.
@@ -34,8 +42,8 @@ export function parseDimensions(stdout: string): { width: number; height: number
 }
 
 /**
- * Condition an image for attachment: downscale to a <=2000px long edge as PNG when it is larger,
- * otherwise leave it exactly as-is. Any sips problem (absent, not invocable, or a failure on this
+ * Condition an image for attachment: downscale to a <=2000px long edge, keeping its source format,
+ * when it is larger, otherwise leave it exactly as-is. Any sips problem (absent, not invocable, or a failure on this
  * image) degrades to the original bytes and media type — a conditioner must never block an attachment.
  *
  * Each outcome is logged the moment it happens (not aggregated at the call site) so the timestamp is
@@ -50,9 +58,10 @@ export async function conditionImage(input: Buffer, mediaType: ImageMediaType, s
       logger.debug(`image conditioning: long edge is within ${MAX_LONG_EDGE}px, attaching unchanged`);
       return { data: input, mediaType };
     }
-    const data = await sips.resizeToPng(input);
-    logger.debug(`image conditioning: long edge exceeds ${MAX_LONG_EDGE}px, downscaled to a ${MAX_LONG_EDGE}px long edge and re-encoded as PNG (${input.length} -> ${data.length} bytes)`);
-    return { data, mediaType: 'image/png' };
+    const output = RESIZE_OUTPUT[mediaType];
+    const data = await sips.resize(input, output.format);
+    logger.debug(`image conditioning: long edge exceeds ${MAX_LONG_EDGE}px, downscaled to a ${MAX_LONG_EDGE}px long edge as ${output.format} (${input.length} -> ${data.length} bytes)`);
+    return { data, mediaType: output.mediaType };
   } catch (error) {
     logger.warn(`image conditioning: sips unavailable or failed, attaching image unchanged (${input.length} bytes)`, { error });
     return { data: input, mediaType };
