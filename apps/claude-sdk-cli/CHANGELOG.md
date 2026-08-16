@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customize which commands ExecV3 will run or refuse, without a mistake in that customization ever disabling safety or breaking the rest of your settings
 - Decode escape sequences in --prompt values: \n, \r, \t, \\
 - Display server tool use as its own block in the conversation
+- Each connection logs the HTTP protocol it negotiated, so a change of protocol is visible rather than silent
 - ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue
 - F3 opens a conversation view listing every conversation held in the current directory, with its model, cost, query and turn counts, context use, span, opening ask and last reply; space peeks at the tail of a conversation and enter switches to it in place, without restarting the CLI
 - Flash tool approval prompt with inverted colours when awaiting Y/N
@@ -61,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inject a skill-catalogue delta: re-scan the skill roots each query and prepend a system-reminder naming the skills whose SKILL.md content changed, silent on the first scan of a session and after a resume
 - Inject the available-skills catalogue as a cached system-reminder on the first user message, scanned from skillDirs at startup and re-injected after compaction, so the model can discover skills to load
 - Mark model with * suffix in status bar when overridden via --model
+- New http.allowH2 setting, off by default, so API requests negotiate HTTP/1.1. Over HTTP/2 a request that exceeds the API's size limit is reset at the protocol layer with no status and no body, which is indistinguishable from a transient network failure and was retried ten times before giving up; over HTTP/1.1 the same request is answered with a readable 413 and refused immediately
 - Publish conversation activity as opt-in NATS tap events
 - Publish the agent concern: ready/pulse/attached/detached telemetry and service/drain/chdir requests
 - Ref and PreviewEdit state is now persisted to disk
@@ -139,6 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A tool call refused without a prompt now says what refused it: the permission setting that decided, the operation it judged, and the paths that selected that setting. It previously reported only that the tool 'is configured to be denied automatically', which was untrue of every case and left both Claude and the operator guessing at a decision the CLI had already made
 - Add `typescript` as a production dependency so consumers do not need it installed separately
+- An error written to the log no longer renders as an empty object. An Error keeps its name, message, stack and cause as non-enumerable properties, so every logged error lost everything it carried; the underlying cause, such as a socket or protocol error code, is now recorded
 - Apply biome formatting fixes
 - Attachments added while a query is streaming are no longer cleared once that query finishes
 - Count tool approval wait time as tool time in the status-line clock
