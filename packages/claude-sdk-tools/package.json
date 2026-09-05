@@ -361,10 +361,10 @@
     "@js-joda/core": "^5.7.0",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
-    "@shellicar/core-di": "^5.0.0-alpha.3",
+    "@shellicar/core-di": "^5.0.0-alpha.6",
     "@shellicar/exec-core": "workspace:^",
     "diff": "^8.0.4",
-    "file-type": "^22.0.1",
+    "file-type": "^22.0.2",
     "yaml": "^2.8.1",
     "zod": "^4.4.3"
   },
@@ -372,12 +372,12 @@
     "@shellicar/build-clean": "^1.3.6",
     "@shellicar/build-version": "^2.0.0",
     "@shellicar/typescript-config": "workspace:^",
-    "@tsconfig/node24": "^24.0.4",
+    "@tsconfig/node24": "^24.0.5",
     "@types/node": "^26.2.0",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.2",
     "tsup": "^8.5.1",
     "tsx": "^4.22.5",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }
