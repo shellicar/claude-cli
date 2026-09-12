@@ -3,9 +3,10 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
-import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
+import { ConversationState, IConversationState, type NewBlock } from '../src/model/ConversationState.js';
 import { COPY_ICON } from '../src/model/markdown/palette.js';
 import { renderConversationFrame } from '../src/view/renderConversation.js';
+import { glyphAtColumn } from './glyphAtColumn.js';
 
 const NOW = Instant.parse('2026-08-11T00:00:00Z');
 
@@ -33,22 +34,6 @@ function strip(s: string): string {
   return s.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
-/**
- * The glyph occupying a column of a row. Walked by display width rather than indexed by
- * code point, because a wide glyph such as a block emoji occupies two columns and would
- * put every later index one out.
- */
-function glyphAtColumn(row: string, column: number): string | undefined {
-  let at = 0;
-  for (const glyph of strip(row)) {
-    if (at === column) {
-      return glyph;
-    }
-    at += stringWidth(glyph);
-  }
-  return undefined;
-}
-
 /** The visible cell a region addresses, as the operator sees it. */
 function cellUnder(frame: { lines: string[]; regions: Array<{ row: number; startCol: number }> }, index: number): string | undefined {
   const region = frame.regions[index];
@@ -58,7 +43,7 @@ function cellUnder(frame: { lines: string[]; regions: Array<{ row: number; start
   return glyphAtColumn(frame.lines[region.row] ?? '', region.startCol);
 }
 
-const sealed = (...blocks: Array<{ type: 'response' | 'thinking'; content: string }>): IConversationState => {
+const sealed = (...blocks: NewBlock[]): IConversationState => {
   const state = buildConversationState();
   state.addBlocks(blocks);
   return state;
@@ -74,6 +59,18 @@ describe('a sealed block carries a copy affordance on its header', () => {
   it('copies the block content', () => {
     const expected = 'hello';
     const actual = renderConversationFrame(sealed({ type: 'response', content: 'hello' }), 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('addresses the cell even when the label carries a variation selector', () => {
+    const expected = COPY_ICON;
+    const actual = cellUnder(renderConversationFrame(sealed({ type: 'execution', content: 'done' }), 80), 0);
+    expect(actual).toBe(expected);
+  });
+
+  it('addresses the cell on a meta block, whose label is a variation selector too', () => {
+    const expected = COPY_ICON;
+    const actual = cellUnder(renderConversationFrame(sealed({ type: 'meta', content: 'notice' }), 80), 0);
     expect(actual).toBe(expected);
   });
 

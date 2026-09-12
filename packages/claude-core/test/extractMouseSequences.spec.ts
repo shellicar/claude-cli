@@ -32,7 +32,7 @@ describe('extractMouseSequences — wheel', () => {
 });
 
 describe('extractMouseSequences — non-wheel mouse', () => {
-  it('swallows a button release (m) and passes nothing through', () => {
+  it('keeps a button release out of the passthrough, so its bytes never reach readline', () => {
     const expected = '';
     const actual = extractMouseSequences(buf('\x1b[<0;3;4m')).passthrough.toString('latin1');
     expect(actual).toBe(expected);

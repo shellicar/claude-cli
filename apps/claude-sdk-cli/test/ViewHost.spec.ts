@@ -46,7 +46,7 @@ import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
-import type { ViewModel } from '../src/view/View.js';
+import type { Frame, ViewModel } from '../src/view/View.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
 import { buildEditorBuffer } from './buildEditorBuffer.js';
@@ -122,6 +122,32 @@ function fakeRenderer(paints: Array<readonly string[]>): TerminalRenderer {
 function singlePresentation(activeChain: () => readonly InputHandler[]): ReadonlyMap<AppModeKey, Presentation> {
   return new Map<AppModeKey, Presentation>([['primary', { view: { render: () => ({ rows: [], regions: [] }) }, activeChain }]]);
 }
+
+describe('ViewHost — the regions it publishes', () => {
+  it('publishes the frame regions so a click has something to resolve against', () => {
+    const model = makeModel();
+    const expected = [{ id: 'fence-1', row: 1, startCol: 2, endCol: 2, text: 'const a = 1;' }];
+    const frameRegions = new FrameRegions();
+    const presentations = new Map<AppModeKey, Presentation>([['primary', { view: { render: () => ({ rows: [], regions: expected }) }, activeChain: () => [] }]]);
+    new ViewHost(fakeRenderer([]), model, presentations, new AppModeState(), frameRegions).renderNow();
+    const actual = frameRegions.current;
+    expect(actual).toEqual(expected);
+  });
+
+  it('replaces the regions of the previous frame rather than accumulating them', () => {
+    const model = makeModel();
+    const frameRegions = new FrameRegions();
+    let frame: Frame = { rows: [], regions: [{ id: 'fence-1', row: 1, startCol: 2, endCol: 2, text: 'const a = 1;' }] };
+    const presentations = new Map<AppModeKey, Presentation>([['primary', { view: { render: () => frame }, activeChain: () => [] }]]);
+    const host = new ViewHost(fakeRenderer([]), model, presentations, new AppModeState(), frameRegions);
+    host.renderNow();
+    frame = { rows: [], regions: [] };
+    host.renderNow();
+    const expected = 0;
+    const actual = frameRegions.current.length;
+    expect(actual).toBe(expected);
+  });
+});
 
 describe('ViewHost — render coalescing', () => {
   it('paints once after a single emission', async () => {

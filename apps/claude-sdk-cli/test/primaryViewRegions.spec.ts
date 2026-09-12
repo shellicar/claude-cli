@@ -1,6 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
-import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { hitTest } from '../src/model/ClickRegion.js';
@@ -21,31 +20,11 @@ import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { Frame, ViewModel } from '../src/view/View.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
 import { buildEditorBuffer } from './buildEditorBuffer.js';
+import { glyphAtColumn } from './glyphAtColumn.js';
 
 const NOW = Instant.parse('2026-08-11T00:00:00Z');
 const CODE = 'const a = 1;\nconst b = 2;';
 const RESPONSE = ['before', '', '```ts', CODE, '```', '', 'after'].join('\n');
-
-function strip(s: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI for test assertions
-  return s.replace(/\x1b\[[0-9;]*m/g, '');
-}
-
-/**
- * The glyph occupying a column of a row. Walked by display width rather than indexed by
- * code point, because a wide glyph such as a block emoji occupies two columns and would
- * put every later index one out.
- */
-function glyphAtColumn(row: string, column: number): string | undefined {
-  let at = 0;
-  for (const glyph of strip(row)) {
-    if (at === column) {
-      return glyph;
-    }
-    at += stringWidth(glyph);
-  }
-  return undefined;
-}
 
 /**
  * The cell the code block's own affordance addresses, as the operator sees it. Found by
