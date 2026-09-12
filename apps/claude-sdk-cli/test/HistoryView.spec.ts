@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { ConversationListState } from '../src/model/ConversationListState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
-import { ConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
@@ -18,6 +17,7 @@ import { HistoryView } from '../src/view/HistoryView.js';
 import { renderViewBar } from '../src/view/renderViewBar.js';
 import type { ViewModel } from '../src/view/View.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
+import { buildConversationState } from './buildConversationState.js';
 import { buildEditorBuffer } from './buildEditorBuffer.js';
 
 const CONTENT_INDENT = '   ';
@@ -38,7 +38,7 @@ function makeTurnClock(): ITurnClock {
 function makeModel(firstContent = 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'): ViewModel {
   const terminalState = new TerminalState();
   terminalState.setSize(80, 24);
-  const conversationState = new ConversationState();
+  const conversationState = buildConversationState();
   conversationState.addBlocks([
     { type: 'response', content: firstContent },
     {

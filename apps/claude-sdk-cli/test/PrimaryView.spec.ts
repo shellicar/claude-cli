@@ -56,7 +56,7 @@ function makeModel(): ViewModel {
   const terminalState = new TerminalState();
   terminalState.setSize(80, 24);
   return {
-    conversationState: new ConversationState(),
+    conversationState: makeConversationState(Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)),
     editorBuffer: buildEditorBuffer(),
     segmenter: new IntlGraphemeSegmenter(),
     toolApprovalState: new ToolApprovalState(),

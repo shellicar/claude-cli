@@ -25,7 +25,7 @@ import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { ICommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationListState } from '../src/model/ConversationListState.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
-import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
+import { IConversationState } from '../src/model/ConversationState.js';
 import { IEditorBuffer } from '../src/model/EditorBuffer.js';
 import { FrameRegions } from '../src/model/FrameRegions.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
@@ -49,6 +49,7 @@ import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { Frame, ViewModel } from '../src/view/View.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
+import { buildConversationState } from './buildConversationState.js';
 import { buildEditorBuffer } from './buildEditorBuffer.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
@@ -92,7 +93,7 @@ function makeModel(): ViewModel {
   const terminalState = new TerminalState();
   terminalState.setSize(80, 24);
   return {
-    conversationState: new ConversationState(),
+    conversationState: buildConversationState(),
     editorBuffer: buildEditorBuffer(),
     segmenter: new IntlGraphemeSegmenter(),
     toolApprovalState: new ToolApprovalState(),

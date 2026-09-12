@@ -6,6 +6,7 @@ import { HistoryNavHandler } from '../src/controller/HistoryNavHandler.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState, IHistoryViewState } from '../src/model/HistoryViewState.js';
 import { ITerminalState, TerminalState } from '../src/model/TerminalState.js';
+import { buildConversationState } from './buildConversationState.js';
 
 class NoopLogger extends ILogger {
   public trace(): void {}
@@ -49,7 +50,7 @@ function buildHistoryNavHandler(state: HistoryViewState, conversation: Conversat
 }
 
 function setup() {
-  const conversation = new ConversationState();
+  const conversation = buildConversationState();
   conversation.addBlocks([
     { type: 'prompt', content: 'ask' },
     {
