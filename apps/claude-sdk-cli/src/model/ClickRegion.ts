@@ -5,11 +5,13 @@
  * Coordinates are zero-based and in the same space as the screen grid, not the
  * terminal's one-based mouse report; the input edge converts once.
  *
- * `text` is both the payload and the identity. A frame is rebuilt whole on every
- * paint, so regions cannot be compared by reference across a repaint, and two
- * regions carrying the same payload are indistinguishable in effect.
+ * `id` is the identity and `text` only the payload. A frame is rebuilt whole on every
+ * paint, so regions cannot be compared by reference across a repaint; the id comes from
+ * the model instead, where it outlives any frame, and two regions are the same target
+ * only when they name the same thing.
  */
 export type ClickRegion = {
+  id: string;
   row: number;
   startCol: number;
   endCol: number;

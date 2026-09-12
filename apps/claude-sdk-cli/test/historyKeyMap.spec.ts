@@ -4,7 +4,7 @@ import type { Block } from '../src/model/ConversationState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 
 function nonTools(): Block[] {
-  return [{ type: 'response', content: 'reply' }];
+  return [{ id: 'block-response', type: 'response', content: 'reply' }];
 }
 
 describe('historyKeyMap — on a list', () => {

@@ -17,7 +17,7 @@ const render = (src: string[]): string[] => markdownContentLines(src.join('\n'),
 
 describe('markdownContentLines — the fence boundary', () => {
   it('renders prose markdown but leaves fenced markdown literal', () => {
-    const expected = [`${BOLD}${HEADING[0]}Hello${FG}${BOLD_END}`, '', ...box(getHighlighted('# Hello', 'md'), 'md').lines];
+    const expected = [`${BOLD}${HEADING[0]}Hello${FG}${BOLD_END}`, '', ...box(getHighlighted('# Hello', 'md'), 'md', COLS, false).lines];
 
     const actual = render(['# Hello', '', '```md', '# Hello', '```']);
 
@@ -134,7 +134,7 @@ describe('markdownContentLines — inline and block constructs', () => {
 describe('markdownContentLines — fenced code', () => {
   it('boxes fenced code with its language label, content highlighted', () => {
     const code = ['const main = () => {', "  console.log('Hello Warble');", '};'].join('\n');
-    const expected = box(getHighlighted(code, 'ts'), 'ts').lines;
+    const expected = box(getHighlighted(code, 'ts'), 'ts', COLS, false).lines;
 
     const actual = render(['```ts', code, '```']);
 
@@ -143,7 +143,7 @@ describe('markdownContentLines — fenced code', () => {
 
   it('wraps a long code line inside the box instead of clipping it', () => {
     const line = 'a very long line that runs well past the box edge and wraps inside it instead of disappearing';
-    const expected = box(getHighlighted(line, 'plaintext'), 'plaintext', 56).lines;
+    const expected = box(getHighlighted(line, 'plaintext'), 'plaintext', 56, false).lines;
 
     const actual = markdownContentLines(['```plaintext', line, '```'].join('\n'), 56, '', getHighlighted);
 
@@ -155,7 +155,7 @@ describe('box — cap, wrap, and label-aware border', () => {
   it('caps to the width, wraps the over-long line, and sizes the border to the label', () => {
     const expected = [`${DIM}\u250c\u2500 ${ACCENT}ts${FG}${DIM} ${'\u2500'.repeat(1)} ${ACCENT}${COPY_ICON}${FG}${DIM}\u2510${R}`, `${DIM}\u2502${FG} abcdef ${DIM}\u2502${R}`, `${DIM}\u2502${FG} gh${' '.repeat(4)} ${DIM}\u2502${R}`, `${DIM}\u2514${'\u2500'.repeat(8)}\u2518${R}`];
 
-    const actual = box(['abcdefgh'], 'ts', 10).lines;
+    const actual = box(['abcdefgh'], 'ts', 10, true).lines;
 
     expect(actual).toEqual(expected);
   });

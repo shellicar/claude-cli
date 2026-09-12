@@ -59,6 +59,9 @@ export function link(href: string, label: string): string {
 /**
  * Draw a code body inside a box with a language label in the top border.
  *
+ * Carries the copy affordance only when `withIcon`, which is how a code block nothing can
+ * identify yet — an unclosed fence — is drawn without offering an action that would not work.
+ *
  * Capped to `termWidth`: snug to the content when it fits, capped-and-wrapped when
  * it does not, so a long line is seen instead of clipping off the right edge. The
  * wrap is ANSI-aware (via `wrapLine`) so a syntax-highlighted line breaks on visible
@@ -73,7 +76,7 @@ export type CodeBox = {
   iconCol: number;
 };
 
-export function box(bodyLines: string[], lang: string, termWidth = 80): CodeBox {
+export function box(bodyLines: string[], lang: string, termWidth: number, withIcon: boolean): CodeBox {
   const maxInner = Math.max(1, termWidth - 4);
   const wrapped: string[] = [];
   for (const l of bodyLines) {
@@ -87,7 +90,7 @@ export function box(bodyLines: string[], lang: string, termWidth = 80): CodeBox 
   // On a terminal too narrow even for that, the border is drawn without an icon rather
   // than losing its width invariant to make room.
   const dashes = innerW - labelWidth - 3;
-  const iconCol = dashes >= 0 ? innerW + 2 : -1;
+  const iconCol = withIcon && dashes >= 0 ? innerW + 2 : -1;
   const out: string[] = [];
   if (iconCol < 0) {
     out.push(DIM + '\u250c\u2500 ' + ACCENT + lang + FG + DIM + ' ' + '\u2500'.repeat(Math.max(0, innerW - 1 - labelWidth)) + '\u2510' + R);

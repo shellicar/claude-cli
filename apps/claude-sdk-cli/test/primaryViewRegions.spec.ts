@@ -135,6 +135,27 @@ describe('PrimaryView — regions against the frame it painted', () => {
   });
 });
 
+function openCodeBlock(): ViewModel {
+  const model = makeModel();
+  model.conversationState.transitionBlock('response');
+  model.conversationState.appendStreaming(['before', '', '```ts', CODE].join('\n'));
+  return model;
+}
+
+describe('PrimaryView — a code block whose fence has not closed', () => {
+  it('draws no copy icon on it', () => {
+    const expected = false;
+    const actual = new PrimaryView().render(openCodeBlock()).rows.some((row) => row.includes(COPY_ICON));
+    expect(actual).toBe(expected);
+  });
+
+  it('offers nothing to click', () => {
+    const expected = 0;
+    const actual = new PrimaryView().render(openCodeBlock()).regions.length;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('PrimaryView — regions while a response is still streaming', () => {
   it('draws the copy icon on a code block in the streaming response', () => {
     const expected = true;

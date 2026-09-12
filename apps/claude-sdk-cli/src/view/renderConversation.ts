@@ -8,7 +8,7 @@ import { blockContentLines, CONTENT_INDENT } from '../model/blockLayout.js';
 import type { ClickRegion } from '../model/ClickRegion.js';
 import type { Block, IConversationState } from '../model/ConversationState.js';
 import { MIN_DIVIDER_WIDTH } from '../model/dividerWidths.js';
-import { type Laid, markdownContent, renderTokens, splitSealedTokens } from '../model/markdown/markdownLayout.js';
+import { codeBoxCount, type FenceIds, fenceCursor, type Laid, markdownContent, noFences, renderTokens, splitSealedTokens } from '../model/markdown/markdownLayout.js';
 import { ACCENT, COPY_ICON } from '../model/markdown/palette.js';
 import { formatDuration } from './formatDuration.js';
 
@@ -58,8 +58,13 @@ export function getHighlighted(code: string, lang: string): string[] {
  * code fences with getHighlighted — layout is shared (model/blockLayout), the
  * cli-highlight decoration stays here in the view.
  */
-export function renderBlockFrame(content: string, cols: number, indent: string = CONTENT_INDENT, markdown = false): Laid {
-  return markdown ? markdownContent(content, cols, indent, getHighlighted) : { lines: blockContentLines(content, cols, indent, getHighlighted), regions: [] };
+export function renderBlockFrame(content: string, cols: number, indent: string = CONTENT_INDENT, markdown = false, fenceIds: FenceIds = noFences): Laid {
+  return markdown ? markdownContent(content, cols, indent, getHighlighted, fenceIds) : { lines: blockContentLines(content, cols, indent, getHighlighted), regions: [] };
+}
+
+/** The identities the model has recorded for a block's code blocks, in the order a render draws them. */
+function recordedFenceIds(block: Block): string[] {
+  return (block.fences ?? []).map((fence) => fence.id);
 }
 
 /** Whether a block renders as markdown: `response` blocks, when the flag is on. */
@@ -174,8 +179,11 @@ function renderStreamingMarkdown(block: Block, cols: number, indent: string, now
   const { sealed, tail } = splitSealedTokens(block.content);
   const sealedRaw = sealed.map((t) => t.raw ?? '').join('');
   const cached = hit && hit.cols === cols && hit.sealedRaw === sealedRaw;
-  const sealedLaid: Laid = cached ? { lines: hit.sealedLines, regions: hit.sealedRegions } : renderTokens(sealed, cols, indent, getHighlighted);
-  const tailLaid = renderTokens(tail, cols, indent, getHighlighted);
+  // One cursor's worth of ids spans both slices, so the tail resumes where the sealed part
+  // stopped even on the frames where the sealed part came back from cache without being walked.
+  const ids = recordedFenceIds(block);
+  const sealedLaid: Laid = cached ? { lines: hit.sealedLines, regions: hit.sealedRegions } : renderTokens(sealed, cols, indent, getHighlighted, fenceCursor(ids));
+  const tailLaid = renderTokens(tail, cols, indent, getHighlighted, fenceCursor(ids, codeBoxCount(sealed)));
   const lines = [...sealedLaid.lines, ...tailLaid.lines];
   const regions = [...sealedLaid.regions, ...tailLaid.regions.map((region) => ({ ...region, row: region.row + sealedLaid.lines.length }))];
 
@@ -202,7 +210,7 @@ export function renderBlockFrameCached(block: Block, content: string, cols: numb
   if (hit && hit.cols === cols && hit.content === content && hit.markdown === markdown) {
     return { lines: hit.lines, regions: hit.regions };
   }
-  const laid = renderBlockFrame(content, cols, indent, markdown);
+  const laid = renderBlockFrame(content, cols, indent, markdown, fenceCursor(recordedFenceIds(block)));
   sealedContentCache.set(block, { cols, content, markdown, lines: laid.lines, regions: laid.regions });
   return laid;
 }
@@ -294,7 +302,7 @@ export function renderConversationFrame(state: IConversationState, cols: number,
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       const header = buildBlockDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt));
-      regions.push({ row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: copyPayload(block) });
+      regions.push({ id: block.id, row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: copyPayload(block) });
       allContent.push(header.line);
       allContent.push('');
     }

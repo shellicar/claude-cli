@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { type ClickRegion, windowRegions } from '../src/model/ClickRegion.js';
 
-const region = (row: number, text = 'const a = 1;'): ClickRegion => ({ row, startCol: 10, endCol: 12, text });
+const region = (row: number, text = 'const a = 1;'): ClickRegion => ({ id: `fence-${row}`, row, startCol: 10, endCol: 12, text });
 
 describe('windowRegions — transcript shorter than the window', () => {
   it('shifts a region down by the blank rows padded above the transcript', () => {

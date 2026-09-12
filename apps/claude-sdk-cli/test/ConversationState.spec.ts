@@ -630,3 +630,84 @@ describe('ConversationState — setLastTools', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('ConversationState — block identity', () => {
+  it('gives each block an id of its own', () => {
+    const state = buildConversationState();
+    state.addBlocks([
+      { type: 'meta', content: 'one' },
+      { type: 'meta', content: 'two' },
+    ]);
+    const expected = 2;
+    const actual = new Set(state.sealedBlocks.map((block) => block.id)).size;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps the active block id when it seals', () => {
+    const state = buildConversationState();
+    state.transitionBlock('response');
+    state.appendStreaming('hello');
+    const expected = state.activeBlock?.id;
+    state.completeActive();
+    const actual = state.sealedBlocks[0]?.id;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('ConversationState — settled code blocks', () => {
+  const FENCE = '```ts\nconst a = 1;\n```\n\n';
+
+  it('records a code block once its fence closes', () => {
+    const state = buildConversationState();
+    state.transitionBlock('response');
+    state.appendStreaming(`intro\n\n${FENCE}after`);
+    const expected = ['const a = 1;'];
+    const actual = state.activeBlock?.fences?.map((fence) => fence.text);
+    expect(actual).toEqual(expected);
+  });
+
+  it('records nothing while the fence is still open', () => {
+    const state = buildConversationState();
+    state.transitionBlock('response');
+    state.appendStreaming('intro\n\n```ts\nconst a = 1;');
+    const actual = state.activeBlock?.fences;
+    expect(actual).toBeUndefined();
+  });
+
+  it('gives two code blocks holding identical source different ids', () => {
+    const state = buildConversationState();
+    state.transitionBlock('response');
+    state.appendStreaming(`${FENCE}${FENCE}after`);
+    const expected = 2;
+    const actual = new Set(state.activeBlock?.fences?.map((fence) => fence.id)).size;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps a code block id as more content arrives after it', () => {
+    const state = buildConversationState();
+    state.transitionBlock('response');
+    state.appendStreaming(`${FENCE}after`);
+    const expected = state.activeBlock?.fences?.[0]?.id;
+    state.appendStreaming('\n\nand more still\n\n');
+    const actual = state.activeBlock?.fences?.[0]?.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('records a fence the response never closed once the block seals', () => {
+    const state = buildConversationState();
+    state.transitionBlock('response');
+    state.appendStreaming('intro\n\n```ts\nconst a = 1;');
+    state.completeActive();
+    const expected = 1;
+    const actual = state.sealedBlocks[0]?.fences?.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('records nothing for a block that is never drawn as markdown', () => {
+    const state = buildConversationState();
+    state.transitionBlock('meta');
+    state.appendStreaming(`intro\n\n${FENCE}after`);
+    const actual = state.activeBlock?.fences;
+    expect(actual).toBeUndefined();
+  });
+});

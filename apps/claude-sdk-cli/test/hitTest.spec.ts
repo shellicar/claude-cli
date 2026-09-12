@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { type ClickRegion, hitTest } from '../src/model/ClickRegion.js';
 
-const region = (overrides: Partial<ClickRegion> = {}): ClickRegion => ({ row: 4, startCol: 10, endCol: 12, text: 'const a = 1;', ...overrides });
+const region = (overrides: Partial<ClickRegion> = {}): ClickRegion => ({ id: 'fence-1', row: 4, startCol: 10, endCol: 12, text: 'const a = 1;', ...overrides });
 
 describe('hitTest', () => {
   it('finds the region a point falls inside', () => {
