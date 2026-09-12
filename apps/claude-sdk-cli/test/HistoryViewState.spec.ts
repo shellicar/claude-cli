@@ -4,8 +4,9 @@ import { HistoryViewState } from '../src/model/HistoryViewState.js';
 
 function blocks(): Block[] {
   return [
-    { type: 'prompt', content: 'ask' },
+    { id: 'block-prompt', type: 'prompt', content: 'ask' },
     {
+      id: 'block-tools',
       type: 'tools',
       content: 'tool lines',
       tools: [
@@ -13,7 +14,7 @@ function blocks(): Block[] {
         { name: 'Exec', kind: 'client', input: { cmd: 'ls' }, output: 'list', phase: 'done' },
       ],
     },
-    { type: 'response', content: 'reply' },
+    { id: 'block-response', type: 'response', content: 'reply' },
   ];
 }
 

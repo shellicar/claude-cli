@@ -5,9 +5,11 @@ import { highlight, supportsLanguage } from 'cli-highlight';
 import stringWidth from 'string-width';
 import type { MarkdownConfig } from '../cli-config/types.js';
 import { blockContentLines, CONTENT_INDENT } from '../model/blockLayout.js';
+import type { ClickRegion } from '../model/ClickRegion.js';
 import type { Block, IConversationState } from '../model/ConversationState.js';
 import { MIN_DIVIDER_WIDTH } from '../model/dividerWidths.js';
-import { markdownContentLines, renderTokenLines, splitSealedTokens } from '../model/markdown/markdownLayout.js';
+import { codeBoxCount, type FenceIds, fenceCursor, type Laid, markdownContent, noFences, renderTokens, splitSealedTokens } from '../model/markdown/markdownLayout.js';
+import { ACCENT, COPY_ICON } from '../model/markdown/palette.js';
 import { formatDuration } from './formatDuration.js';
 
 const FILL = '\u2500';
@@ -56,8 +58,13 @@ export function getHighlighted(code: string, lang: string): string[] {
  * code fences with getHighlighted — layout is shared (model/blockLayout), the
  * cli-highlight decoration stays here in the view.
  */
-export function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT, markdown = false): string[] {
-  return markdown ? markdownContentLines(content, cols, indent, getHighlighted) : blockContentLines(content, cols, indent, getHighlighted);
+export function renderBlockFrame(content: string, cols: number, indent: string = CONTENT_INDENT, markdown = false, fenceIds: FenceIds = noFences): Laid {
+  return markdown ? markdownContent(content, cols, indent, getHighlighted, fenceIds) : { lines: blockContentLines(content, cols, indent, getHighlighted), regions: [] };
+}
+
+/** The identities the model has recorded for a block's code blocks, in the order a render draws them. */
+function recordedFenceIds(block: Block): string[] {
+  return (block.fences ?? []).map((fence) => fence.id);
 }
 
 /** Whether a block renders as markdown: `response` blocks, when the flag is on. */
@@ -88,7 +95,7 @@ export function blockTimestamps(createdAt: Instant | undefined, exitedAt: Instan
   };
 }
 
-type SealedRender = { cols: number; content: string; markdown: boolean; lines: string[] };
+type SealedRender = { cols: number; content: string; markdown: boolean; lines: string[]; regions: ClickRegion[] };
 const sealedContentCache = new WeakMap<Block, SealedRender>();
 
 /**
@@ -104,9 +111,11 @@ type StreamingMarkdownCache = {
   cols: number;
   sealedRaw: string;
   sealedLines: string[];
+  sealedRegions: ClickRegion[];
   lastRunAt: number;
   decoratedContent: string;
   decoratedLines: string[];
+  decoratedRegions: ClickRegion[];
   // True when decoratedLines' last entry is the still-open tail's last wrapped row — i.e. safe to
   // continue appending raw text onto. False when the tail was empty at decoration time (content ended
   // exactly at a sealed boundary), in which case the last entry is sealed content (e.g. a closing fence
@@ -135,14 +144,16 @@ const streamingMarkdownCache = new WeakMap<Block, StreamingMarkdownCache>();
  * Keyed by block identity, like sealedContentCache; a fresh WeakMap entry per block means a new
  * response starts with no stale state from a previous one.
  */
-function renderStreamingMarkdown(block: Block, cols: number, indent: string, now: number): string[] {
+function renderStreamingMarkdown(block: Block, cols: number, indent: string, now: number): Laid {
   const hit = streamingMarkdownCache.get(block);
   const dueForRefresh = !hit || hit.cols !== cols || now - hit.lastRunAt >= MARKDOWN_REFRESH_MS || !block.content.startsWith(hit.decoratedContent);
 
   if (!dueForRefresh && hit) {
     const rawTail = block.content.slice(hit.decoratedContent.length);
     if (rawTail.length === 0) {
-      return hit.decoratedLines;
+      // A copy: the caller swaps the first line's indent for the block emoji, and the
+      // cached array would carry that swap into the next frame and slice it again.
+      return { lines: [...hit.decoratedLines], regions: hit.decoratedRegions };
     }
     // The raw tail's first fragment (up to its first \n, or all of it if there's none) continues
     // whatever was already on the last decorated line — it must be concatenated and rewrapped, not
@@ -160,17 +171,24 @@ function renderStreamingMarkdown(block: Block, cols: number, indent: string, now
     for (const fragment of fragments) {
       lines.push(...wrapLine(indent + fragment, cols));
     }
-    return lines;
+    // Raw appended text carries no code fence, so it adds no clickable span, and every
+    // span the decorated prefix holds keeps its row: only the last line is ever rewrapped.
+    return { lines, regions: hit.decoratedRegions };
   }
 
   const { sealed, tail } = splitSealedTokens(block.content);
   const sealedRaw = sealed.map((t) => t.raw ?? '').join('');
-  const sealedLines = hit && hit.cols === cols && hit.sealedRaw === sealedRaw ? hit.sealedLines : renderTokenLines(sealed, cols, indent, getHighlighted);
-  const tailLines = renderTokenLines(tail, cols, indent, getHighlighted);
-  const lines = [...sealedLines, ...tailLines];
+  const cached = hit && hit.cols === cols && hit.sealedRaw === sealedRaw;
+  // One cursor's worth of ids spans both slices, so the tail resumes where the sealed part
+  // stopped even on the frames where the sealed part came back from cache without being walked.
+  const ids = recordedFenceIds(block);
+  const sealedLaid: Laid = cached ? { lines: hit.sealedLines, regions: hit.sealedRegions } : renderTokens(sealed, cols, indent, getHighlighted, fenceCursor(ids));
+  const tailLaid = renderTokens(tail, cols, indent, getHighlighted, fenceCursor(ids, codeBoxCount(sealed)));
+  const lines = [...sealedLaid.lines, ...tailLaid.lines];
+  const regions = [...sealedLaid.regions, ...tailLaid.regions.map((region) => ({ ...region, row: region.row + sealedLaid.lines.length }))];
 
-  streamingMarkdownCache.set(block, { cols, sealedRaw, sealedLines, lastRunAt: now, decoratedContent: block.content, decoratedLines: lines, hasOpenLine: tailLines.length > 0 });
-  return lines;
+  streamingMarkdownCache.set(block, { cols, sealedRaw, sealedLines: sealedLaid.lines, sealedRegions: sealedLaid.regions, lastRunAt: now, decoratedContent: block.content, decoratedLines: lines, decoratedRegions: regions, hasOpenLine: tailLaid.lines.length > 0 });
+  return { lines, regions };
 }
 
 /**
@@ -186,15 +204,15 @@ function renderStreamingMarkdown(block: Block, cols: number, indent: string, now
  * block identity; the WeakMap drops entries when a block is gc'd (e.g.
  * ConversationState.clear()). The active streaming block is never cached.
  */
-export function renderBlockContentCached(block: Block, content: string, cols: number, markdown: boolean): string[] {
+export function renderBlockFrameCached(block: Block, content: string, cols: number, markdown: boolean): Laid {
   const indent = block.type === 'notice' ? '' : CONTENT_INDENT;
   const hit = sealedContentCache.get(block);
   if (hit && hit.cols === cols && hit.content === content && hit.markdown === markdown) {
-    return hit.lines;
+    return { lines: hit.lines, regions: hit.regions };
   }
-  const lines = renderBlockContent(content, cols, indent, markdown);
-  sealedContentCache.set(block, { cols, content, markdown, lines });
-  return lines;
+  const laid = renderBlockFrame(content, cols, indent, markdown, fenceCursor(recordedFenceIds(block)));
+  sealedContentCache.set(block, { cols, content, markdown, lines: laid.lines, regions: laid.regions });
+  return laid;
 }
 
 /**
@@ -227,13 +245,72 @@ export function buildDivider(displayLabel: string | null, cols: number, timestam
 }
 
 /**
+ * A block's header divider, with the copy affordance that puts the whole block on the
+ * clipboard. Only sealed blocks get one: until a block closes there is less to copy than
+ * there will be. Same rule as the code box, whose icon waits for its fence to close.
+ */
+export function buildBlockDivider(displayLabel: string, cols: number, timestamps?: DividerTimestamps): { line: string; iconCol: number } {
+  const bare = buildDivider(displayLabel, cols, timestamps);
+  return { line: `${bare} ${ACCENT}${COPY_ICON}${RESET}`, iconCol: stringWidth(bare) + 1 };
+}
+
+/**
+ * The rows a run of blocks draws, as text. blockContentLines drops one trailing newline
+ * when it lays a block out, so joining the raw contents would paste a blank line the
+ * transcript never drew.
+ */
+function runContent(run: readonly Block[]): string {
+  return run.map((block) => (block.content.endsWith('\n') ? block.content.slice(0, -1) : block.content)).join('\n');
+}
+
+/**
+ * What a block's copy affordance puts on the clipboard.
+ *
+ * Consecutive blocks of one type are drawn as a single block under one header, so the
+ * affordance on that header answers for every block beneath it. A run of one is the
+ * ordinary case.
+ *
+ * A tools or execution block shows a one-line summary of the calls it made, which is
+ * useless pasted anywhere, so it copies the calls themselves as JSON: a tools block is
+ * the invocation side and carries each call's name and input, an execution block is the
+ * result side and carries each call's name and output. Every other block copies its own
+ * content, which is what it displays.
+ */
+function copyPayload(run: readonly [Block, ...Block[]]): string {
+  const first = run[0];
+  if (first.type !== 'tools' && first.type !== 'execution') {
+    return runContent(run);
+  }
+  const entries = run.flatMap((block) => block.tools ?? []);
+  if (entries.length === 0) {
+    return runContent(run);
+  }
+  const calls = first.type === 'tools' ? entries.map((entry) => ({ name: entry.name, input: entry.input })) : entries.map((entry) => ({ name: entry.name, output: entry.output }));
+  return JSON.stringify(calls, null, 2);
+}
+
+/** The block and every sealed block drawn beneath its header, which is the run of one type it starts. */
+function runFrom(sealedBlocks: ReadonlyArray<Block>, start: number, block: Block): [Block, ...Block[]] {
+  const run: [Block, ...Block[]] = [block];
+  for (let i = start + 1; i < sealedBlocks.length; i++) {
+    const next = sealedBlocks[i];
+    if (next?.type !== block.type) {
+      break;
+    }
+    run.push(next);
+  }
+  return run;
+}
+
+/**
  * Render conversation blocks into an array of display lines for the alt-buffer viewport.
  *
  * Returns sealed blocks + active streaming block. The caller (AppLayout) appends the
  * editor divider and editor lines when in editor mode, then slices to contentRows.
  */
-export function renderConversation(state: IConversationState, cols: number, markdown?: MarkdownConfig): string[] {
+export function renderConversationFrame(state: IConversationState, cols: number, markdown?: MarkdownConfig): Laid {
   const allContent: string[] = [];
+  const regions: ClickRegion[] = [];
   const sealedBlocks = state.sealedBlocks;
 
   for (let i = 0; i < sealedBlocks.length; i++) {
@@ -248,12 +325,26 @@ export function renderConversation(state: IConversationState, cols: number, mark
     const hasNextContinuation = nextBlock?.type === block.type;
 
     if (!isContinuation && block.type !== 'notice') {
-      const emoji = BLOCK_EMOJI[block.type] ?? '';
-      const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      allContent.push(buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt)));
+      const label = `${BLOCK_EMOJI[block.type] ?? ''}${BLOCK_PLAIN[block.type] ?? block.type}`;
+      const timestamps = blockTimestamps(block.createdAt, block.exitedAt);
+      const run = runFrom(sealedBlocks, i, block);
+      // The run reaches into the block still being written, so what this header answers for is
+      // not finished. Same rule as an open fence: draw the header, offer nothing on it.
+      const stillBeingWritten = i + run.length === sealedBlocks.length && state.activeBlock?.type === block.type;
+      if (stillBeingWritten) {
+        allContent.push(buildDivider(label, cols, timestamps));
+      } else {
+        const header = buildBlockDivider(label, cols, timestamps);
+        regions.push({ id: block.id, row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: copyPayload(run) });
+        allContent.push(header.line);
+      }
       allContent.push('');
     }
-    allContent.push(...renderBlockContentCached(block, block.content, cols, blockRendersMarkdown(block, markdown)));
+    const laid = renderBlockFrameCached(block, block.content, cols, blockRendersMarkdown(block, markdown));
+    for (const region of laid.regions) {
+      regions.push({ ...region, row: region.row + allContent.length });
+    }
+    allContent.push(...laid.lines);
     if (!hasNextContinuation) {
       allContent.push('');
     }
@@ -278,9 +369,13 @@ export function renderConversation(state: IConversationState, cols: number, mark
     if (streamingMarkdown) {
       // markdownContentLines indents every line; swap the first line's indent for
       // the block emoji so the active block keeps its leading marker.
-      const mdLines = renderStreamingMarkdown(state.activeBlock, cols, activeIndent, Date.now());
+      const streamed = renderStreamingMarkdown(state.activeBlock, cols, activeIndent, Date.now());
+      const mdLines = streamed.lines;
       if (mdLines.length > 0) {
         mdLines[0] = activeEmoji + mdLines[0].slice(activeIndent.length);
+      }
+      for (const region of streamed.regions) {
+        regions.push({ ...region, row: region.row + allContent.length });
       }
       allContent.push(...mdLines);
     } else {
@@ -292,7 +387,7 @@ export function renderConversation(state: IConversationState, cols: number, mark
     }
   }
 
-  return allContent;
+  return { lines: allContent, regions };
 }
 
 /**
@@ -317,7 +412,7 @@ export function renderBlocksToString(allBlocks: ReadonlyArray<Block>, startIndex
       out += `${buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt))}\n\n`;
     }
     const blockIndent = block.type === 'notice' ? '' : CONTENT_INDENT;
-    for (const line of renderBlockContent(block.content, cols, blockIndent, blockRendersMarkdown(block, markdown))) {
+    for (const line of renderBlockFrame(block.content, cols, blockIndent, blockRendersMarkdown(block, markdown)).lines) {
       out += `${line}\n`;
     }
     if (!hasNextContinuation) {

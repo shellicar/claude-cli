@@ -1,7 +1,12 @@
+import { marked } from 'marked';
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
-import { markdownContentLines } from '../src/model/markdown/markdownLayout.js';
-import { ACCENT, BOLD, BOLD_END, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from '../src/model/markdown/palette.js';
+import type { CodeDecorator } from '../src/model/blockLayout.js';
+import { codeBoxCount, markdownContent } from '../src/model/markdown/markdownLayout.js';
+
+const markdownContentLines = (content: string, cols: number, indent: string, decorate: CodeDecorator): string[] => markdownContent(content, cols, indent, decorate).lines;
+
+import { ACCENT, BOLD, BOLD_END, box, CODE_FG, COPY_ICON, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from '../src/model/markdown/palette.js';
 import { getHighlighted } from '../src/view/renderConversation.js';
 
 // The source-to-rendered pairs come from the mission's visual spec (spec/spec.mjs):
@@ -13,7 +18,7 @@ const render = (src: string[]): string[] => markdownContentLines(src.join('\n'),
 
 describe('markdownContentLines — the fence boundary', () => {
   it('renders prose markdown but leaves fenced markdown literal', () => {
-    const expected = [`${BOLD}${HEADING[0]}Hello${FG}${BOLD_END}`, '', ...box(getHighlighted('# Hello', 'md'), 'md')];
+    const expected = [`${BOLD}${HEADING[0]}Hello${FG}${BOLD_END}`, '', ...box(getHighlighted('# Hello', 'md'), 'md', COLS, false).lines];
 
     const actual = render(['# Hello', '', '```md', '# Hello', '```']);
 
@@ -130,7 +135,7 @@ describe('markdownContentLines — inline and block constructs', () => {
 describe('markdownContentLines — fenced code', () => {
   it('boxes fenced code with its language label, content highlighted', () => {
     const code = ['const main = () => {', "  console.log('Hello Warble');", '};'].join('\n');
-    const expected = box(getHighlighted(code, 'ts'), 'ts');
+    const expected = box(getHighlighted(code, 'ts'), 'ts', COLS, false).lines;
 
     const actual = render(['```ts', code, '```']);
 
@@ -139,7 +144,7 @@ describe('markdownContentLines — fenced code', () => {
 
   it('wraps a long code line inside the box instead of clipping it', () => {
     const line = 'a very long line that runs well past the box edge and wraps inside it instead of disappearing';
-    const expected = box(getHighlighted(line, 'plaintext'), 'plaintext', 56);
+    const expected = box(getHighlighted(line, 'plaintext'), 'plaintext', 56, false).lines;
 
     const actual = markdownContentLines(['```plaintext', line, '```'].join('\n'), 56, '', getHighlighted);
 
@@ -149,9 +154,9 @@ describe('markdownContentLines — fenced code', () => {
 
 describe('box — cap, wrap, and label-aware border', () => {
   it('caps to the width, wraps the over-long line, and sizes the border to the label', () => {
-    const expected = [`${DIM}\u250c\u2500 ${ACCENT}ts${FG}${DIM} ${'\u2500'.repeat(3)}\u2510${R}`, `${DIM}\u2502${FG} abcdef ${DIM}\u2502${R}`, `${DIM}\u2502${FG} gh${' '.repeat(4)} ${DIM}\u2502${R}`, `${DIM}\u2514${'\u2500'.repeat(8)}\u2518${R}`];
+    const expected = [`${DIM}\u250c\u2500 ${ACCENT}ts${FG}${DIM} ${'\u2500'.repeat(1)} ${ACCENT}${COPY_ICON}${FG}${DIM}\u2510${R}`, `${DIM}\u2502${FG} abcdef ${DIM}\u2502${R}`, `${DIM}\u2502${FG} gh${' '.repeat(4)} ${DIM}\u2502${R}`, `${DIM}\u2514${'\u2500'.repeat(8)}\u2518${R}`];
 
-    const actual = box(['abcdefgh'], 'ts', 10);
+    const actual = box(['abcdefgh'], 'ts', 10, true).lines;
 
     expect(actual).toEqual(expected);
   });
@@ -295,5 +300,57 @@ describe('table — measuring a cell', () => {
     const actual = render(['| a | b |', '| --- | --- |', '| 1 | |']).filter((l) => /\s$/.test(l));
 
     expect(actual).toEqual(expected);
+  });
+});
+
+// codeBoxCount tells the store how many code boxes a render will draw, and the ids it hands
+// out are matched to them by order, so the two walks have to agree on every construct. They
+// are separate implementations, and this is what holds them together: a document carrying
+// every construct the walk has a case for, counted both ways. A construct added to one walk
+// and not the other still needs adding here.
+const EVERY_CONSTRUCT = [
+  '# Heading',
+  '',
+  'A paragraph with **bold** and `a codespan`.',
+  '',
+  '```ts',
+  'const top = 1;',
+  '```',
+  '',
+  '- a list item',
+  '- one with a fence inside it:',
+  '',
+  '  ```ts',
+  '  const inAList = 2;',
+  '  ```',
+  '',
+  '> a quote',
+  '>',
+  '> ```ts',
+  '> const inAQuote = 3;',
+  '> ```',
+  '',
+  '| a | b |',
+  '| - | - |',
+  '| 1 | 2 |',
+  '',
+  '---',
+  '',
+  '    const indented = 4;',
+  '',
+].join('\n');
+
+describe('codeBoxCount', () => {
+  it('counts exactly the boxes the walk draws', () => {
+    const drawn = markdownContent(EVERY_CONSTRUCT, COLS, '', getHighlighted).lines;
+    const expected = drawn.filter((line) => line.includes('\u250c')).length;
+    const actual = codeBoxCount(marked.lexer(EVERY_CONSTRUCT));
+    expect(actual).toBe(expected);
+  });
+
+  it('counts more than one, so the document is actually exercising it', () => {
+    const expected = true;
+    const actual = codeBoxCount(marked.lexer(EVERY_CONSTRUCT)) > 1;
+    expect(actual).toBe(expected);
   });
 });

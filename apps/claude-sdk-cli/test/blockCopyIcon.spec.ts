@@ -1,0 +1,228 @@
+import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
+import stringWidth from 'string-width';
+import { describe, expect, it } from 'vitest';
+import { ConversationState, IConversationState, type NewBlock } from '../src/model/ConversationState.js';
+import { COPY_ICON } from '../src/model/markdown/palette.js';
+import { renderConversationFrame } from '../src/view/renderConversation.js';
+import { glyphAtColumn } from './glyphAtColumn.js';
+
+const NOW = Instant.parse('2026-08-11T00:00:00Z');
+
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+function buildConversationState(): IConversationState {
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services.register(NoopLogger).as(ILogger);
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(NOW, ZoneId.UTC))
+    .asSelf();
+  services.register(ConversationState).as(IConversationState);
+  return services.buildProvider().resolve(IConversationState);
+}
+
+function strip(s: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI for test assertions
+  return s.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+/** The visible cell a region addresses, as the operator sees it. */
+function cellUnder(frame: { lines: string[]; regions: Array<{ row: number; startCol: number }> }, index: number): string | undefined {
+  const region = frame.regions[index];
+  if (!region) {
+    return undefined;
+  }
+  return glyphAtColumn(frame.lines[region.row] ?? '', region.startCol);
+}
+
+const sealed = (...blocks: NewBlock[]): IConversationState => {
+  const state = buildConversationState();
+  state.addBlocks(blocks);
+  return state;
+};
+
+describe('a sealed block carries a copy affordance on its header', () => {
+  it('addresses the cell the icon was drawn in', () => {
+    const expected = COPY_ICON;
+    const actual = cellUnder(renderConversationFrame(sealed({ type: 'response', content: 'hello' }), 80), 0);
+    expect(actual).toBe(expected);
+  });
+
+  it('copies the block content', () => {
+    const expected = 'hello';
+    const actual = renderConversationFrame(sealed({ type: 'response', content: 'hello' }), 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('addresses the cell even when the label carries a variation selector', () => {
+    const expected = COPY_ICON;
+    const actual = cellUnder(renderConversationFrame(sealed({ type: 'execution', content: 'done' }), 80), 0);
+    expect(actual).toBe(expected);
+  });
+
+  it('addresses the cell on a meta block, whose label is a variation selector too', () => {
+    const expected = COPY_ICON;
+    const actual = cellUnder(renderConversationFrame(sealed({ type: 'meta', content: 'notice' }), 80), 0);
+    expect(actual).toBe(expected);
+  });
+
+  it('gives a block of each type its own affordance', () => {
+    const expected = 2;
+    const actual = renderConversationFrame(sealed({ type: 'thinking', content: 'pondering' }, { type: 'response', content: 'hello' }), 80).regions.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('a block of tool calls copies the calls, not its summary', () => {
+  it('copies each invocation with its input', () => {
+    const expected = JSON.stringify([{ name: 'ExecV3', input: { intent: 'look' } }], null, 2);
+    const state = buildConversationState();
+    state.transitionBlock('tools');
+    state.appendToActive('\u2192 ExecV3');
+    state.setLastTools('tools', '\u2192 ExecV3', [{ name: 'ExecV3', input: { intent: 'look' }, output: null, kind: 'client', phase: 'ok' }]);
+    state.transitionBlock('response');
+    const actual = renderConversationFrame(state, 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('copies each result with its output', () => {
+    const expected = JSON.stringify([{ name: 'ExecV3', output: 'done' }], null, 2);
+    const state = buildConversationState();
+    state.transitionBlock('execution');
+    state.appendToActive('\u21a9 1 result');
+    state.setLastTools('execution', '\u21a9 1 result', [{ name: 'ExecV3', input: { intent: 'look' }, output: 'done', kind: 'client', phase: 'ok' }]);
+    state.transitionBlock('response');
+    const actual = renderConversationFrame(state, 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('falls back to the summary when the block carries no calls', () => {
+    const expected = '\u2192 ExecV3';
+    const state = buildConversationState();
+    state.transitionBlock('tools');
+    state.appendToActive('\u2192 ExecV3');
+    state.transitionBlock('response');
+    const actual = renderConversationFrame(state, 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('a block still being written carries none', () => {
+  it('offers nothing to copy while the block is open', () => {
+    const state = buildConversationState();
+    state.transitionBlock('response');
+    state.appendToActive('half a thou');
+    const expected = 0;
+    const actual = renderConversationFrame(state, 80).regions.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('draws no icon while the block is open', () => {
+    const state = buildConversationState();
+    state.transitionBlock('response');
+    state.appendToActive('half a thou');
+    const expected = false;
+    const actual = renderConversationFrame(state, 80).lines.some((row) => row.includes(COPY_ICON));
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('the header keeps its shape', () => {
+  it('still shows the block label', () => {
+    const expected = true;
+    const actual = strip(renderConversationFrame(sealed({ type: 'response', content: 'hello' }), 80).lines[0] ?? '').includes('response');
+    expect(actual).toBe(expected);
+  });
+
+  it('puts the icon at the end of the divider', () => {
+    const frame = renderConversationFrame(sealed({ type: 'response', content: 'hello' }), 80);
+    const expected = stringWidth(strip(frame.lines[0] ?? '')) - 1;
+    const actual = frame.regions[0]?.startCol;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('blocks drawn as one carry one affordance for all of them', () => {
+  it('draws a single affordance over a run of the same type', () => {
+    const expected = 1;
+    const actual = renderConversationFrame(sealed({ type: 'response', content: 'First part.' }, { type: 'response', content: 'Second part.' }), 80).regions.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('copies every block under the header, not just the first', () => {
+    const expected = 'First part.\nSecond part.';
+    const actual = renderConversationFrame(sealed({ type: 'response', content: 'First part.' }, { type: 'response', content: 'Second part.' }), 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('joins without the blank line the transcript never drew', () => {
+    const expected = 'First part.\nSecond part.';
+    const actual = renderConversationFrame(sealed({ type: 'response', content: 'First part.\n' }, { type: 'response', content: 'Second part.' }), 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('stops at the end of the run rather than running into the next type', () => {
+    const expected = 'First part.\nSecond part.';
+    const actual = renderConversationFrame(sealed({ type: 'response', content: 'First part.' }, { type: 'response', content: 'Second part.' }, { type: 'thinking', content: 'pondering' }), 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('copies every call across a run of tool blocks', () => {
+    const expected = JSON.stringify(
+      [
+        { name: 'ReadFile', input: { path: 'a.ts' } },
+        { name: 'ExecV3', input: { intent: 'look' } },
+      ],
+      null,
+      2,
+    );
+    const state = buildConversationState();
+    state.addBlocks([
+      { type: 'tools', content: '\u2192 ReadFile', tools: [{ name: 'ReadFile', input: { path: 'a.ts' }, output: null, kind: 'client', phase: 'ok' }] },
+      { type: 'tools', content: '\u2192 ExecV3', tools: [{ name: 'ExecV3', input: { intent: 'look' }, output: null, kind: 'client', phase: 'ok' }] },
+    ]);
+    const actual = renderConversationFrame(state, 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+});
+
+// A response, then a tool block that never gets content, then a response again. The empty
+// middle block seals nothing, so the sealed run and the active block are both `response` and
+// the active one is drawn under the sealed one's header.
+function runStillBeingWritten(): IConversationState {
+  const state = buildConversationState();
+  state.transitionBlock('response');
+  state.appendStreaming('first half');
+  state.transitionBlock('tools');
+  state.transitionBlock('response');
+  state.appendStreaming('second half');
+  return state;
+}
+
+describe('a header whose run reaches into the block still being written', () => {
+  it('offers nothing to copy', () => {
+    const expected = 0;
+    const actual = renderConversationFrame(runStillBeingWritten(), 80).regions.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('draws no icon on it', () => {
+    const expected = false;
+    const actual = renderConversationFrame(runStillBeingWritten(), 80).lines.some((row) => row.includes(COPY_ICON));
+    expect(actual).toBe(expected);
+  });
+
+  it('still draws the header', () => {
+    const expected = true;
+    const actual = strip(renderConversationFrame(runStillBeingWritten(), 80).lines[0] ?? '').includes('response');
+    expect(actual).toBe(expected);
+  });
+});

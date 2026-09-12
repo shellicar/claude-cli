@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { markdownContentLines } from '../src/model/markdown/markdownLayout.js';
+import type { CodeDecorator } from '../src/model/blockLayout.js';
+import { markdownContent } from '../src/model/markdown/markdownLayout.js';
+
+const markdownContentLines = (content: string, cols: number, indent: string, decorate: CodeDecorator): string[] => markdownContent(content, cols, indent, decorate).lines;
 
 /**
  * Instrumentation, not a stopwatch: renderConversation's active (streaming) block is never cached

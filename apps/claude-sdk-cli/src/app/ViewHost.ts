@@ -1,5 +1,6 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
 import type { AppModeKey, IAppModeState } from '../model/AppModeState.js';
+import type { IFrameRegions } from '../model/FrameRegions.js';
 import type { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import type { Presentation } from './Presentation.js';
@@ -24,15 +25,17 @@ export class ViewHost implements Disposable {
   readonly #model: ViewModel;
   readonly #presentations: ReadonlyMap<AppModeKey, Presentation>;
   readonly #appModeState: IAppModeState;
+  readonly #frameRegions: IFrameRegions;
   readonly #onChange: () => void;
   #renderPending = false;
   #disposed = false;
 
-  public constructor(renderer: TerminalRenderer, model: ViewModel, presentations: ReadonlyMap<AppModeKey, Presentation>, appModeState: IAppModeState) {
+  public constructor(renderer: TerminalRenderer, model: ViewModel, presentations: ReadonlyMap<AppModeKey, Presentation>, appModeState: IAppModeState, frameRegions: IFrameRegions) {
     this.#renderer = renderer;
     this.#model = model;
     this.#presentations = presentations;
     this.#appModeState = appModeState;
+    this.#frameRegions = frameRegions;
     this.#onChange = () => this.scheduleRender();
 
     model.conversationState.on('change', this.#onChange);
@@ -83,8 +86,9 @@ export class ViewHost implements Disposable {
     if (this.#disposed) {
       return;
     }
-    const rows = this.#activePresentation().view.render(this.#model);
-    this.#renderer.paint(rows);
+    const frame = this.#activePresentation().view.render(this.#model);
+    this.#frameRegions.set(frame.regions);
+    this.#renderer.paint(frame.rows);
   }
 
   public scheduleRender(): void {

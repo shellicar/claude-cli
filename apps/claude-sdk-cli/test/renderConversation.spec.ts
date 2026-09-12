@@ -4,7 +4,7 @@ import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import stringWidth from 'string-width';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
-import { buildDivider, type DividerTimestamps, renderBlockContentCached, renderConversation } from '../src/view/renderConversation.js';
+import { buildDivider, type DividerTimestamps, renderBlockFrameCached, renderConversationFrame } from '../src/view/renderConversation.js';
 
 class NoopLogger extends ILogger {
   public trace(): void {}
@@ -39,7 +39,7 @@ describe('renderConversation — empty state', () => {
   it('returns an empty array when no blocks exist', () => {
     const state = buildConversationState();
     const expected = 0;
-    const actual = renderConversation(state, 80).length;
+    const actual = renderConversationFrame(state, 80).lines.length;
     expect(actual).toBe(expected);
   });
 });
@@ -48,7 +48,7 @@ describe('renderConversation — single sealed block', () => {
   it('includes a divider line for the block', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: 'hello' }]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const actual = lines.some((l) => l.includes('response'));
     expect(actual).toBe(true);
   });
@@ -56,7 +56,7 @@ describe('renderConversation — single sealed block', () => {
   it('includes a blank line after the divider', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: 'hello' }]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const dividerIdx = lines.findIndex((l) => l.includes('response'));
     const actual = lines[dividerIdx + 1];
     expect(actual).toBe('');
@@ -65,7 +65,7 @@ describe('renderConversation — single sealed block', () => {
   it('includes the block content', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: 'hello world' }]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const actual = lines.some((l) => l.includes('hello world'));
     expect(actual).toBe(true);
   });
@@ -73,7 +73,7 @@ describe('renderConversation — single sealed block', () => {
   it('includes a trailing blank line after the content', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: 'hello' }]);
-    const lines = renderConversation(state, 80);
+    const lines = renderConversationFrame(state, 80).lines;
     const actual = lines[lines.length - 1];
     expect(actual).toBe('');
   });
@@ -86,7 +86,7 @@ describe('renderConversation — continuation suppression', () => {
       { type: 'tools', content: 'tool A' },
       { type: 'tools', content: 'tool B' },
     ]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const dividerCount = lines.filter((l) => l.includes('tool use')).length;
     // Only the first block gets a divider; the second is a continuation
     const expected = 1;
@@ -100,7 +100,7 @@ describe('renderConversation — continuation suppression', () => {
       { type: 'tools', content: 'tool A' },
       { type: 'tools', content: 'tool B' },
     ]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     // Find the line with "tool A"; the line after should NOT be blank (continuation)
     const aIdx = lines.findIndex((l) => l.includes('tool A'));
     const actual = lines[aIdx + 1];
@@ -115,7 +115,7 @@ describe('renderConversation — active block', () => {
     state.addBlocks([{ type: 'prompt', content: 'user prompt' }]);
     state.transitionBlock('response');
     state.appendToActive('streaming...');
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const actual = lines.some((l) => l.includes('response'));
     expect(actual).toBe(true);
   });
@@ -125,7 +125,7 @@ describe('renderConversation — active block', () => {
     state.addBlocks([{ type: 'tools', content: 'tool A' }]);
     state.transitionBlock('tools');
     state.appendToActive('tool B');
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const dividerCount = lines.filter((l) => l.includes('tool use')).length;
     // Only the sealed block gets a divider; active continuation does not
     const expected = 1;
@@ -137,7 +137,7 @@ describe('renderConversation — active block', () => {
     const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('live content');
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const actual = lines.some((l) => l.includes('live content'));
     expect(actual).toBe(true);
   });
@@ -146,7 +146,7 @@ describe('renderConversation — active block', () => {
     const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('streaming');
-    const lines = renderConversation(state, 80);
+    const lines = renderConversationFrame(state, 80).lines;
     // Last line is the content, not a blank
     const actual = lines[lines.length - 1];
     expect(actual).not.toBe('');
@@ -168,10 +168,10 @@ describe('renderConversation — streaming markdown line continuation', () => {
     state.transitionBlock('response');
     state.appendToActive('hello wor');
     // First render: full decoration pass, caches the wrapped lines.
-    renderConversation(state, 80, markdown);
+    renderConversationFrame(state, 80, markdown).lines;
     // Second delta arrives with no newline, inside the same refresh window (fake timers, time frozen).
     state.appendToActive('ld more text');
-    const lines = renderConversation(state, 80, markdown).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80, markdown).lines.map(stripAnsi);
     const actual = lines.some((l) => l.trim().endsWith('hello world more text'));
     expect(actual).toBe(true);
   });
@@ -181,9 +181,9 @@ describe('renderConversation — streaming markdown line continuation', () => {
     const markdown = { enabled: true, streaming: true };
     state.transitionBlock('response');
     state.appendToActive('hello wor');
-    renderConversation(state, 80, markdown);
+    renderConversationFrame(state, 80, markdown).lines;
     state.appendToActive('ld more text');
-    const lines = renderConversation(state, 80, markdown).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80, markdown).lines.map(stripAnsi);
     const actual = lines.some((l) => l.trim().endsWith('hello wor'));
     expect(actual).toBe(false);
   });
@@ -193,9 +193,9 @@ describe('renderConversation — streaming markdown line continuation', () => {
     const markdown = { enabled: true, streaming: true };
     state.transitionBlock('response');
     state.appendToActive('hello\n\n');
-    renderConversation(state, 80, markdown);
+    renderConversationFrame(state, 80, markdown).lines;
     state.appendToActive('World');
-    const lines = renderConversation(state, 80, markdown).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80, markdown).lines.map(stripAnsi);
     const helloLine = lines.find((l) => l.includes('hello'));
     const actual = helloLine?.includes('World');
     expect(actual).toBe(false);
@@ -206,9 +206,9 @@ describe('renderConversation — streaming markdown line continuation', () => {
     const markdown = { enabled: true, streaming: true };
     state.transitionBlock('response');
     state.appendToActive('hello\n\n');
-    renderConversation(state, 80, markdown);
+    renderConversationFrame(state, 80, markdown).lines;
     state.appendToActive('World');
-    const lines = renderConversation(state, 80, markdown).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80, markdown).lines.map(stripAnsi);
     const actual = lines.some((l) => l.trim() === 'World');
     expect(actual).toBe(true);
   });
@@ -219,10 +219,10 @@ describe('renderConversation — streaming markdown line continuation', () => {
     const cols = 20;
     state.transitionBlock('response');
     state.appendToActive('a'.repeat(15));
-    renderConversation(state, cols, markdown);
+    renderConversationFrame(state, cols, markdown).lines;
     // Appending past the column width must reflow onto a new row, still as one continuous word.
     state.appendToActive('b'.repeat(10));
-    const lines = renderConversation(state, cols, markdown).map(stripAnsi);
+    const lines = renderConversationFrame(state, cols, markdown).lines.map(stripAnsi);
     const joined = lines.map((l) => l.trim()).join('');
     const actual = joined.includes(`${'a'.repeat(15)}${'b'.repeat(10)}`);
     expect(actual).toBe(true);
@@ -264,7 +264,7 @@ describe('renderConversation — notice block', () => {
   it('sealed notice block renders without a divider', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'notice', content: 'some warning' }]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const expected = false;
     const actual = lines.some((l) => l.includes('notice'));
     expect(actual).toBe(expected);
@@ -273,7 +273,7 @@ describe('renderConversation — notice block', () => {
   it('sealed notice block includes the content', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'notice', content: 'some warning' }]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const expected = true;
     const actual = lines.some((l) => l.includes('some warning'));
     expect(actual).toBe(expected);
@@ -283,7 +283,7 @@ describe('renderConversation — notice block', () => {
     const state = buildConversationState();
     state.transitionBlock('notice');
     state.appendToActive('[stop: max_tokens]');
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const expected = false;
     const actual = lines.some((l) => l.includes('notice'));
     expect(actual).toBe(expected);
@@ -293,7 +293,7 @@ describe('renderConversation — notice block', () => {
     const state = buildConversationState();
     state.transitionBlock('notice');
     state.appendToActive('[stop: max_tokens]');
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const expected = true;
     const actual = lines.some((l) => l.includes('[stop: max_tokens]'));
     expect(actual).toBe(expected);
@@ -302,7 +302,7 @@ describe('renderConversation — notice block', () => {
   it('notice block content is not indented', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'notice', content: 'some warning' }]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const noticeLine = lines.find((l) => l.includes('some warning'));
     const expected = 'some warning';
     const actual = noticeLine;
@@ -314,7 +314,7 @@ describe('renderConversation — code fence highlighting', () => {
   it('renders code from an unknown language without warning (plain fallback)', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: '```unknownxyz\nfoo bar\n```' }]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const actual = lines.some((l) => l.includes('foo bar'));
     expect(actual).toBe(true);
   });
@@ -322,7 +322,7 @@ describe('renderConversation — code fence highlighting', () => {
   it('preserves the original fence label even when an alias is used for highlighting', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: '```jsonl\n{"key": 1}\n```' }]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     // Fence header should show the original language name, not the alias
     const actual = lines.some((l) => l.includes('```jsonl'));
     expect(actual).toBe(true);
@@ -331,7 +331,7 @@ describe('renderConversation — code fence highlighting', () => {
   it('renders jsonl code content', () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: '```jsonl\n{"key": 1}\n```' }]);
-    const lines = renderConversation(state, 80).map(stripAnsi);
+    const lines = renderConversationFrame(state, 80).lines.map(stripAnsi);
     const actual = lines.some((l) => l.includes('"key"'));
     expect(actual).toBe(true);
   });
@@ -345,8 +345,8 @@ describe('renderBlockContentCached — HistoryView shares this cache', () => {
     if (!block) {
       throw new Error('expected a sealed block');
     }
-    const first = renderBlockContentCached(block, block.content, 80, false);
-    const second = renderBlockContentCached(block, block.content, 80, false);
+    const first = renderBlockFrameCached(block, block.content, 80, false).lines;
+    const second = renderBlockFrameCached(block, block.content, 80, false).lines;
     const actual = second === first;
     expect(actual).toBe(true);
   });
@@ -358,8 +358,8 @@ describe('renderBlockContentCached — HistoryView shares this cache', () => {
     if (!block) {
       throw new Error('expected a sealed block');
     }
-    renderBlockContentCached(block, block.content, 80, false);
-    const second = renderBlockContentCached(block, block.content, 78, false);
+    renderBlockFrameCached(block, block.content, 80, false).lines;
+    const second = renderBlockFrameCached(block, block.content, 78, false).lines;
     const actual = second.some((l) => l.includes('hello'));
     expect(actual).toBe(true);
   });
@@ -372,8 +372,8 @@ describe('renderBlockContentCached — HistoryView shares this cache', () => {
       throw new Error('expected a sealed block');
     }
     const namesPreview = 'ReadFile . Exec';
-    const first = renderBlockContentCached(block, namesPreview, 80, false);
-    const second = renderBlockContentCached(block, namesPreview, 80, false);
+    const first = renderBlockFrameCached(block, namesPreview, 80, false).lines;
+    const second = renderBlockFrameCached(block, namesPreview, 80, false).lines;
     const actual = second === first && second.some((l) => l.includes('ReadFile'));
     expect(actual).toBe(true);
   });

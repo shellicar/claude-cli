@@ -42,7 +42,7 @@ function render(listState: ConversationListState, sessionId = CURRENT_ID, phase:
     statusState: { cwdBasename: 'claude-cli' },
     clock: Clock.fixed(NOW, ZoneId.UTC),
   } as unknown as ViewModel;
-  return plain(new ConversationView().render(model));
+  return plain(new ConversationView().render(model).rows);
 }
 
 const listWith = (...entries: Array<{ id: string; summary?: AuditSummary }>): ConversationListState => {

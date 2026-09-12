@@ -178,3 +178,5 @@
 {"description":"New http.allowH2 setting, off by default, so API requests negotiate HTTP/1.1","category":"added"}
 {"description":"An error written to the log keeps its name, message, stack and cause instead of rendering as an empty object","category":"fixed"}
 {"description":"Each connection logs the HTTP protocol it negotiated","category":"added"}
+{"description":"Copy a code block by clicking the icon in its top border. The block's source is put on the system clipboard, unwrapped and undecorated, and the status bar confirms how many lines went","category":"added"}
+{"description":"Copy a whole block by clicking the icon on its header. The icon appears once the block is sealed, since copying one still being written gives you less than it will hold","category":"added"}

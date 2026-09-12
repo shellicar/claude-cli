@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import EventEmitter from 'node:events';
 import { Clock, Instant } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import { dependsOn } from '@shellicar/core-di';
+import { settledCodeTexts } from './markdown/markdownLayout.js';
 import type { ToolEntry } from './ToolObject.js';
 
 type ConversationStateEvents = {
@@ -11,9 +13,42 @@ type ConversationStateEvents = {
 
 export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'execution' | 'compaction' | 'meta' | 'notice';
 
+/**
+ * How often a still-streaming block is re-parsed to look for code blocks that have settled.
+ *
+ * Without a period this runs once per delta, and each run parses the whole block, so the cost
+ * of a long answer grows with the square of its length. Nothing needs the fence noticed on the
+ * delta that closed it: the affordance cannot appear before the next paint anyway, and the seal
+ * settles everything unconditionally. The value only has to be short enough that the latency it
+ * adds before an icon appears goes unnoticed.
+ */
+const FENCE_SETTLE_MS = 120;
+
+/**
+ * A code block whose content has settled, and the identity a click on its copy affordance
+ * resolves to. Minted once and never reissued, so the same fence is the same target in
+ * every frame that draws it.
+ */
+export type FenceRecord = {
+  id: string;
+  text: string;
+};
+
 export type Block = {
+  /**
+   * Minted when the block is created and carried through the seal. A frame is rebuilt whole
+   * on every paint, so this is what lets a press and a release two frames apart agree on
+   * what was clicked.
+   */
+  id: string;
   type: BlockType;
   content: string;
+  /**
+   * The settled code blocks within `content`, in the order a render draws them. Grows as
+   * fences close and never shrinks. Only `response` blocks are drawn as markdown, so only
+   * they have any.
+   */
+  fences?: FenceRecord[];
   /** Structured tool entries for a `tools` block; undefined for every other type. The history view reads this; the Primary view renders `content`. */
   tools?: ToolEntry[];
   /**
@@ -23,6 +58,9 @@ export type Block = {
   createdAt?: Instant;
   exitedAt?: Instant;
 };
+
+/** A block as a caller supplies it: the store mints the id and discovers the fences. */
+export type NewBlock = Omit<Block, 'id' | 'fences'>;
 
 export type TransitionResult = {
   noop: boolean;
@@ -45,7 +83,7 @@ export abstract class IConversationState {
   public abstract get flushedCount(): number;
   public abstract get activeBlock(): Block | null;
   public abstract get promptStartedAt(): Instant | null;
-  public abstract addBlocks(blocks: ReadonlyArray<Block>): void;
+  public abstract addBlocks(blocks: ReadonlyArray<NewBlock>): void;
   public abstract markPromptStart(): void;
   public abstract transitionBlock(type: BlockType): TransitionResult;
   public abstract appendToActive(text: string): void;
@@ -68,6 +106,7 @@ export class ConversationState extends IConversationState {
   #activeBlock: Block | null = null;
   @dependsOn(Clock) private readonly clock!: Clock;
   #promptStartedAt: Instant | null = null;
+  readonly #lastSettleMillis = new WeakMap<Block, number>();
   readonly #emitter = new EventEmitter<ConversationStateEvents>();
 
   public on<K extends keyof ConversationStateEvents>(event: K, listener: (...args: ConversationStateEvents[K]) => void): void {
@@ -104,9 +143,11 @@ export class ConversationState extends IConversationState {
    * already flushed: these are re-displays of past content or boot-time notices, not new turn
    * content, so they must not be re-written to scrollback.
    */
-  public addBlocks(blocks: ReadonlyArray<Block>): void {
+  public addBlocks(blocks: ReadonlyArray<NewBlock>): void {
     for (const block of blocks) {
-      this.#sealedBlocks.push(block);
+      const added: Block = { ...block, id: randomUUID() };
+      this.#settleFences(added, true);
+      this.#sealedBlocks.push(added);
     }
     this.#flushedCount = this.#sealedBlocks.length;
     this.#emitter.emit('change');
@@ -136,12 +177,11 @@ export class ConversationState extends IConversationState {
     const from = this.#activeBlock?.type ?? null;
     const sealed = !!this.#activeBlock?.content.trim();
     if (this.#activeBlock?.content.trim()) {
-      const sealing = this.#activeBlock;
-      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.clock) });
+      this.#seal(this.#activeBlock);
     }
     const createdAt = type === 'prompt' && this.#promptStartedAt !== null ? this.#promptStartedAt : Instant.now(this.clock);
     this.#promptStartedAt = null;
-    this.#activeBlock = { type, content: '', createdAt };
+    this.#activeBlock = { id: randomUUID(), type, content: '', createdAt };
     this.#emitter.emit('change');
     return { noop: false, from, sealed };
   }
@@ -150,6 +190,7 @@ export class ConversationState extends IConversationState {
   public appendToActive(text: string): void {
     if (this.#activeBlock) {
       this.#activeBlock.content += text;
+      this.#settleFences(this.#activeBlock, false);
       this.#emitter.emit('change');
     }
   }
@@ -162,9 +203,10 @@ export class ConversationState extends IConversationState {
    */
   public appendStreaming(text: string): void {
     if (!this.#activeBlock) {
-      this.#activeBlock = { type: 'notice', content: '', createdAt: Instant.now(this.clock) };
+      this.#activeBlock = { id: randomUUID(), type: 'notice', content: '', createdAt: Instant.now(this.clock) };
     }
     this.#activeBlock.content += sanitiseLoneSurrogates(text);
+    this.#settleFences(this.#activeBlock, false);
     this.#emitter.emit('change');
   }
 
@@ -176,6 +218,7 @@ export class ConversationState extends IConversationState {
   public replaceActiveFromOffset(offset: number, text: string): void {
     if (this.#activeBlock) {
       this.#activeBlock.content = this.#activeBlock.content.slice(0, offset) + text;
+      this.#settleFences(this.#activeBlock, false);
     }
   }
 
@@ -188,6 +231,7 @@ export class ConversationState extends IConversationState {
   public setActiveBlockContent(text: string): void {
     if (this.#activeBlock) {
       this.#activeBlock.content = sanitiseLoneSurrogates(text);
+      this.#settleFences(this.#activeBlock, false);
       this.#emitter.emit('change');
     }
   }
@@ -205,7 +249,7 @@ export class ConversationState extends IConversationState {
   public spliceNotice(text: string): void {
     const sanitised = sanitiseLoneSurrogates(text);
     if (!this.#activeBlock) {
-      this.#activeBlock = { type: 'notice', content: `${sanitised}\n`, createdAt: Instant.now(this.clock) };
+      this.#activeBlock = { id: randomUUID(), type: 'notice', content: `${sanitised}\n`, createdAt: Instant.now(this.clock) };
       this.#emitter.emit('change');
       return;
     }
@@ -216,6 +260,7 @@ export class ConversationState extends IConversationState {
     } else {
       this.#activeBlock.content = `${content.slice(0, pos + 1)}${sanitised}\n${content.slice(pos + 1)}`;
     }
+    this.#settleFences(this.#activeBlock, false);
     this.#emitter.emit('change');
   }
 
@@ -228,6 +273,7 @@ export class ConversationState extends IConversationState {
     const sanitised = sanitiseLoneSurrogates(text);
     if (this.#activeBlock?.type === type) {
       this.#activeBlock.content = sanitised;
+      this.#settleFences(this.#activeBlock, false);
       this.#emitter.emit('change');
       return;
     }
@@ -251,11 +297,54 @@ export class ConversationState extends IConversationState {
     this.logger.warn('setLastTools: no active block of matching type; sealed blocks are never modified', { type });
   }
 
+  /**
+   * Close a block off and file it. Sealing is the last thing that happens to its content, so
+   * every code block in it has settled by definition, including a fence the response left
+   * unclosed: nothing more is coming to close it.
+   */
+  #seal(block: Block): void {
+    const sealed: Block = { ...block, exitedAt: Instant.now(this.clock) };
+    this.#settleFences(sealed, true);
+    this.#sealedBlocks.push(sealed);
+  }
+
+  /**
+   * Give an identity to any code block that has settled since the last look.
+   *
+   * Ids are minted once and never revisited, so the records already held have to still line up
+   * with the order a render walks them in. That holds while content only grows, since a fence
+   * that has closed cannot reopen. `replaceActiveFromOffset` and `setActiveBlockContent` can
+   * shorten or replace it and would break the alignment; neither has a caller today.
+   *
+   * The period is held per block, so a block that has just opened is looked at straight away
+   * rather than waiting out the one before it. Sealing always looks, whatever the period: it is
+   * the last chance, and what it finds is final. The streaming path is the only one that reads
+   * the clock.
+   */
+  #settleFences(block: Block, final: boolean): void {
+    if (block.type !== 'response') {
+      return;
+    }
+    if (!final) {
+      const now = this.clock.millis();
+      const last = this.#lastSettleMillis.get(block);
+      if (last !== undefined && now - last < FENCE_SETTLE_MS) {
+        return;
+      }
+      this.#lastSettleMillis.set(block, now);
+    }
+    const texts = settledCodeTexts(block.content, final);
+    const held = block.fences ?? [];
+    if (texts.length <= held.length) {
+      return;
+    }
+    block.fences = [...held, ...texts.slice(held.length).map((text) => ({ id: randomUUID(), text }))];
+  }
+
   /** Seal the active block if it has content, then clear it. */
   public completeActive(): void {
     if (this.#activeBlock?.content.trim()) {
-      const sealing = this.#activeBlock;
-      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.clock) });
+      this.#seal(this.#activeBlock);
     }
     this.#activeBlock = null;
     this.#emitter.emit('change');
@@ -272,6 +361,7 @@ export class ConversationState extends IConversationState {
   public appendToLastSealed(type: BlockType, text: string): 'active' | 'miss' {
     if (this.#activeBlock?.type === type) {
       this.#activeBlock.content += text;
+      this.#settleFences(this.#activeBlock, false);
       this.#emitter.emit('change');
       return 'active';
     }

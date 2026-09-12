@@ -25,8 +25,9 @@ import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { ICommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationListState } from '../src/model/ConversationListState.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
-import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
+import { IConversationState } from '../src/model/ConversationState.js';
 import { IEditorBuffer } from '../src/model/EditorBuffer.js';
+import { FrameRegions } from '../src/model/FrameRegions.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
@@ -45,9 +46,10 @@ import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
-import type { ViewModel } from '../src/view/View.js';
+import type { Frame, ViewModel } from '../src/view/View.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
+import { buildConversationState } from './buildConversationState.js';
 import { buildEditorBuffer } from './buildEditorBuffer.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
@@ -91,7 +93,7 @@ function makeModel(): ViewModel {
   const terminalState = new TerminalState();
   terminalState.setSize(80, 24);
   return {
-    conversationState: new ConversationState(),
+    conversationState: buildConversationState(),
     editorBuffer: buildEditorBuffer(),
     segmenter: new IntlGraphemeSegmenter(),
     toolApprovalState: new ToolApprovalState(),
@@ -119,8 +121,34 @@ function fakeRenderer(paints: Array<readonly string[]>): TerminalRenderer {
 }
 
 function singlePresentation(activeChain: () => readonly InputHandler[]): ReadonlyMap<AppModeKey, Presentation> {
-  return new Map<AppModeKey, Presentation>([['primary', { view: { render: () => [] }, activeChain }]]);
+  return new Map<AppModeKey, Presentation>([['primary', { view: { render: () => ({ rows: [], regions: [] }) }, activeChain }]]);
 }
+
+describe('ViewHost — the regions it publishes', () => {
+  it('publishes the frame regions so a click has something to resolve against', () => {
+    const model = makeModel();
+    const expected = [{ id: 'fence-1', row: 1, startCol: 2, endCol: 2, text: 'const a = 1;' }];
+    const frameRegions = new FrameRegions();
+    const presentations = new Map<AppModeKey, Presentation>([['primary', { view: { render: () => ({ rows: [], regions: expected }) }, activeChain: () => [] }]]);
+    new ViewHost(fakeRenderer([]), model, presentations, new AppModeState(), frameRegions).renderNow();
+    const actual = frameRegions.current;
+    expect(actual).toEqual(expected);
+  });
+
+  it('replaces the regions of the previous frame rather than accumulating them', () => {
+    const model = makeModel();
+    const frameRegions = new FrameRegions();
+    let frame: Frame = { rows: [], regions: [{ id: 'fence-1', row: 1, startCol: 2, endCol: 2, text: 'const a = 1;' }] };
+    const presentations = new Map<AppModeKey, Presentation>([['primary', { view: { render: () => frame }, activeChain: () => [] }]]);
+    const host = new ViewHost(fakeRenderer([]), model, presentations, new AppModeState(), frameRegions);
+    host.renderNow();
+    frame = { rows: [], regions: [] };
+    host.renderNow();
+    const expected = 0;
+    const actual = frameRegions.current.length;
+    expect(actual).toBe(expected);
+  });
+});
 
 describe('ViewHost — render coalescing', () => {
   it('paints once after a single emission', async () => {
@@ -131,6 +159,7 @@ describe('ViewHost — render coalescing', () => {
       model,
       singlePresentation(() => []),
       new AppModeState(),
+      new FrameRegions(),
     );
     model.conversationState.addBlocks([{ type: 'meta', content: 'x' }]);
     await flush();
@@ -147,6 +176,7 @@ describe('ViewHost — render coalescing', () => {
       model,
       singlePresentation(() => []),
       new AppModeState(),
+      new FrameRegions(),
     );
     model.conversationState.addBlocks([{ type: 'meta', content: 'x' }]);
     model.editorBuffer.reset();
@@ -174,6 +204,7 @@ describe('ViewHost — key dispatch', () => {
       model,
       singlePresentation(() => chain),
       new AppModeState(),
+      new FrameRegions(),
     );
     host.dispatchKey({ type: 'char', value: 'x' });
     const expected = ['a', 'b'];
@@ -190,6 +221,7 @@ describe('ViewHost — key dispatch', () => {
       model,
       singlePresentation(() => chain),
       new AppModeState(),
+      new FrameRegions(),
     );
     host.dispatchKey({ type: 'escape' });
     const expected = 0;
@@ -216,8 +248,8 @@ describe('ViewHost — key dispatch', () => {
         },
       },
     ];
-    const presentation = new PrimaryPresentation({ render: () => [] }, model.primaryViewState, editorChain, streamingChain);
-    const host = new ViewHost(fakeRenderer([]), model, new Map<AppModeKey, Presentation>([['primary', presentation]]), new AppModeState());
+    const presentation = new PrimaryPresentation({ render: () => ({ rows: [], regions: [] }) }, model.primaryViewState, editorChain, streamingChain);
+    const host = new ViewHost(fakeRenderer([]), model, new Map<AppModeKey, Presentation>([['primary', presentation]]), new AppModeState(), new FrameRegions());
     host.dispatchKey({ type: 'char', value: 'x' });
     model.primaryViewState.setPhase('streaming');
     host.dispatchKey({ type: 'char', value: 'x' });
@@ -337,7 +369,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
     const editorChain: readonly InputHandler[] = [provider.resolve(ApprovalHandler), provider.resolve(CommandKeyHandler), provider.resolve(EditorHandler)];
     const streamingChain: readonly InputHandler[] = [provider.resolve(ApprovalHandler), provider.resolve(CancelHandler)];
     const presentation = new PrimaryPresentation(new PrimaryView(), model.primaryViewState, editorChain, streamingChain);
-    const host = new ViewHost(fakeRenderer([]), model, new Map<AppModeKey, Presentation>([['primary', presentation]]), new AppModeState());
+    const host = new ViewHost(fakeRenderer([]), model, new Map<AppModeKey, Presentation>([['primary', presentation]]), new AppModeState(), new FrameRegions());
     return { host, model, cancelLog };
   }
 
@@ -362,7 +394,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
 describe('ViewHost — presentation switching', () => {
   function twoPresentations(log: string[]): ReadonlyMap<AppModeKey, Presentation> {
     const primary: Presentation = {
-      view: { render: () => [] },
+      view: { render: () => ({ rows: [], regions: [] }) },
       activeChain: () => [
         {
           handleKey: () => {
@@ -373,7 +405,7 @@ describe('ViewHost — presentation switching', () => {
       ],
     };
     const history: Presentation = {
-      view: { render: () => [] },
+      view: { render: () => ({ rows: [], regions: [] }) },
       activeChain: () => [
         {
           handleKey: () => {
@@ -393,7 +425,7 @@ describe('ViewHost — presentation switching', () => {
     const model = makeModel();
     const log: string[] = [];
     const appModeState = new AppModeState();
-    const host = new ViewHost(fakeRenderer([]), model, twoPresentations(log), appModeState);
+    const host = new ViewHost(fakeRenderer([]), model, twoPresentations(log), appModeState, new FrameRegions());
     host.dispatchKey({ type: 'char', value: 'x' });
     appModeState.setActive('history');
     host.dispatchKey({ type: 'char', value: 'x' });
@@ -407,7 +439,7 @@ describe('ViewHost — presentation switching', () => {
     const paints: Array<readonly string[]> = [];
     const appModeState = new AppModeState();
     appModeState.setActive('history');
-    new ViewHost(fakeRenderer(paints), model, twoPresentations([]), appModeState);
+    new ViewHost(fakeRenderer(paints), model, twoPresentations([]), appModeState, new FrameRegions());
     model.historyViewState.reset();
     await flush();
     const expected = 1;

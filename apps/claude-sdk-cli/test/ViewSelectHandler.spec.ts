@@ -9,6 +9,7 @@ import { ConversationListState, IConversationListState } from '../src/model/Conv
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState, IHistoryViewState } from '../src/model/HistoryViewState.js';
+import { buildConversationState } from './buildConversationState.js';
 
 /** The conversation this process is on, which entry to the view should land on. */
 const LIVE_ID = 'conv-live';
@@ -70,7 +71,7 @@ function buildViewSelectHandler(appModeState: AppModeState, historyViewState: Hi
 function setup() {
   const appModeState = new AppModeState();
   const historyViewState = new HistoryViewState();
-  const conversation = new ConversationState();
+  const conversation = buildConversationState();
   conversation.addBlocks([
     { type: 'prompt', content: 'a' },
     { type: 'response', content: 'b' },

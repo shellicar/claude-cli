@@ -1,6 +1,7 @@
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { marked, type Token, type Tokens } from 'marked';
 import type { CodeDecorator } from '../blockLayout.js';
+import type { ClickRegion } from '../ClickRegion.js';
 import { HR_WIDTH } from '../dividerWidths.js';
 import { ACCENT, BOLD, BOLD_END, BULLET, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from './palette.js';
 
@@ -113,14 +114,44 @@ function list(token: Tokens.List, cols: number, decorate: CodeDecorator, depth: 
   return out;
 }
 
+/**
+ * Lines, and the clickable spans within them, addressed relative to this array's own
+ * first line. A caller splicing these into a larger array offsets the rows by where it
+ * put them; one adding a prefix offsets the columns by the prefix's width.
+ */
+export type Laid = {
+  lines: string[];
+  regions: ClickRegion[];
+};
+
+const shift = (regions: readonly ClickRegion[], rows: number, columns: number): ClickRegion[] => regions.map((r) => ({ ...r, row: r.row + rows, startCol: r.startCol + columns, endCol: r.endCol + columns }));
+
+/**
+ * Hands out the identity of each code box in the order the walk draws them, which is the
+ * same order the model recorded them in. Running out means the model holds no record for
+ * this one, so it is drawn without an affordance rather than with a dead one.
+ */
+export type FenceIds = () => string | undefined;
+
+/** A cursor over recorded fence ids, optionally resuming partway in when an earlier slice was drawn from cache. */
+export function fenceCursor(ids: readonly string[], from = 0): FenceIds {
+  let next = from;
+  return () => ids[next++];
+}
+
+/** For the render paths that produce no clickable spans at all: scrollback, the history view. */
+export const noFences: FenceIds = () => undefined;
+
 /** Render a blockquote: each produced line gets a dimmed `│` gutter and italic body. */
-function quote(token: Tokens.Blockquote, cols: number, decorate: CodeDecorator): string[] {
-  return blocks(token.tokens, cols, decorate).map((l) => `${DIM}\u2502${R} ${ITALIC}${l}${ITALIC_END}`);
+function quote(token: Tokens.Blockquote, cols: number, decorate: CodeDecorator, fenceIds: FenceIds): Laid {
+  const inner = blocks(token.tokens, cols, decorate, fenceIds);
+  return { lines: inner.lines.map((l) => `${DIM}\u2502${R} ${ITALIC}${l}${ITALIC_END}`), regions: shift(inner.regions, 0, 2) };
 }
 
 /** Render block-level tokens to display lines (no outer indent; the caller adds it). */
-function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[] {
+function blocks(tokens: Token[], cols: number, decorate: CodeDecorator, fenceIds: FenceIds): Laid {
   const out: string[] = [];
+  const regions: ClickRegion[] = [];
   for (const t of tokens) {
     switch (t.type) {
       case 'heading': {
@@ -135,15 +166,25 @@ function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[
       case 'code': {
         const c = t as Tokens.Code;
         const lang = (c.lang ? c.lang.trim().split(/\s+/)[0] : '') || 'plaintext';
-        out.push(...box(decorate(c.text, lang), lang, cols));
+        // Drawn for every code box so the cursor stays in step with the walk, even where the
+        // box turns out too narrow to carry the icon.
+        const id = fenceIds();
+        const drawn = box(decorate(c.text, lang), lang, cols, id !== undefined);
+        if (id !== undefined && drawn.iconCol >= 0) {
+          regions.push({ id, row: out.length, startCol: drawn.iconCol, endCol: drawn.iconCol, text: c.text });
+        }
+        out.push(...drawn.lines);
         break;
       }
       case 'list':
         out.push(...list(t as Tokens.List, cols, decorate, 0));
         break;
-      case 'blockquote':
-        out.push(...quote(t as Tokens.Blockquote, cols, decorate));
+      case 'blockquote': {
+        const quoted = quote(t as Tokens.Blockquote, cols, decorate, fenceIds);
+        regions.push(...shift(quoted.regions, out.length, 0));
+        out.push(...quoted.lines);
         break;
+      }
       case 'table': {
         const tb = t as Tokens.Table;
         out.push(
@@ -166,7 +207,7 @@ function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[
         break;
     }
   }
-  return out;
+  return { lines: out, regions };
 }
 
 /**
@@ -174,9 +215,10 @@ function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[
  * raw path. Mirrors blockContentLines' signature so the view and any measurement
  * share one walker, with `decorate` injected for code-body colour.
  */
-export function markdownContentLines(content: string, cols: number, indent: string, decorate: CodeDecorator): string[] {
+export function markdownContent(content: string, cols: number, indent: string, decorate: CodeDecorator, fenceIds: FenceIds = noFences): Laid {
   const inner = Math.max(1, cols - indent.length);
-  return blocks(marked.lexer(content), inner, decorate).map((l) => indent + l);
+  const laid = blocks(marked.lexer(content), inner, decorate, fenceIds);
+  return { lines: laid.lines.map((l) => indent + l), regions: shift(laid.regions, 0, indent.length) };
 }
 
 /**
@@ -204,7 +246,62 @@ export function splitSealedTokens(content: string): { sealed: Token[]; tail: Tok
 }
 
 /** Render an already-split token slice (see splitSealedTokens) to indented display lines. */
-export function renderTokenLines(tokens: Token[], cols: number, indent: string, decorate: CodeDecorator): string[] {
+export function renderTokens(tokens: Token[], cols: number, indent: string, decorate: CodeDecorator, fenceIds: FenceIds = noFences): Laid {
   const inner = Math.max(1, cols - indent.length);
-  return blocks(tokens, inner, decorate).map((l) => indent + l);
+  const laid = blocks(tokens, inner, decorate, fenceIds);
+  return { lines: laid.lines.map((l) => indent + l), regions: shift(laid.regions, 0, indent.length) };
+}
+
+/**
+ * The code bodies a render draws a box for, in that order. Mirrors the walk in `blocks`: top
+ * level and inside a blockquote, but not inside a list item, where a fence is flattened to
+ * inline text and never boxed.
+ */
+function codeTexts(tokens: readonly Token[]): string[] {
+  const out: string[] = [];
+  for (const t of tokens) {
+    if (t.type === 'code') {
+      out.push((t as Tokens.Code).text);
+    } else if (t.type === 'blockquote') {
+      out.push(...codeTexts((t as Tokens.Blockquote).tokens));
+    }
+  }
+  return out;
+}
+
+/** How many code boxes a token slice draws, so a cursor can resume past a slice rendered from cache. */
+export function codeBoxCount(tokens: readonly Token[]): number {
+  return codeTexts(tokens).length;
+}
+
+/**
+ * Whether the last thing in the document is a code block. marked's fence rule consumes to end
+ * of input when a fence never closes, so an unclosed one is always in this position. A code
+ * block anywhere else has closed.
+ */
+function endsInCode(tokens: readonly Token[]): boolean {
+  const last = tokens[tokens.length - 1];
+  if (!last) {
+    return false;
+  }
+  if (last.type === 'code') {
+    return true;
+  }
+  return last.type === 'blockquote' ? endsInCode((last as Tokens.Blockquote).tokens) : false;
+}
+
+/**
+ * The code bodies in `content` that can no longer change, in the order a render draws them.
+ *
+ * `final` is a block that has sealed: nothing more is coming, so a fence left unclosed has
+ * settled too. While a block is still being written the last code box is excluded when it is
+ * also the document's last token, since that is the only place an open fence can be.
+ */
+export function settledCodeTexts(content: string, final: boolean): string[] {
+  const tokens = marked.lexer(content);
+  const texts = codeTexts(tokens);
+  if (!final && endsInCode(tokens)) {
+    texts.pop();
+  }
+  return texts;
 }

@@ -1,5 +1,9 @@
+import type { Token } from 'marked';
 import { describe, expect, it } from 'vitest';
-import { renderTokenLines, splitSealedTokens } from '../src/model/markdown/markdownLayout.js';
+import type { CodeDecorator } from '../src/model/blockLayout.js';
+import { renderTokens, splitSealedTokens } from '../src/model/markdown/markdownLayout.js';
+
+const renderTokenLines = (tokens: Token[], cols: number, indent: string, decorate: CodeDecorator): string[] => renderTokens(tokens, cols, indent, decorate).lines;
 
 /**
  * Proves the fix behind renderStreamingMarkdown (renderConversation.ts): splitting lexed tokens at the
