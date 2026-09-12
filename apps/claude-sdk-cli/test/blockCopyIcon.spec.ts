@@ -193,3 +193,36 @@ describe('blocks drawn as one carry one affordance for all of them', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// A response, then a tool block that never gets content, then a response again. The empty
+// middle block seals nothing, so the sealed run and the active block are both `response` and
+// the active one is drawn under the sealed one's header.
+function runStillBeingWritten(): IConversationState {
+  const state = buildConversationState();
+  state.transitionBlock('response');
+  state.appendStreaming('first half');
+  state.transitionBlock('tools');
+  state.transitionBlock('response');
+  state.appendStreaming('second half');
+  return state;
+}
+
+describe('a header whose run reaches into the block still being written', () => {
+  it('offers nothing to copy', () => {
+    const expected = 0;
+    const actual = renderConversationFrame(runStillBeingWritten(), 80).regions.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('draws no icon on it', () => {
+    const expected = false;
+    const actual = renderConversationFrame(runStillBeingWritten(), 80).lines.some((row) => row.includes(COPY_ICON));
+    expect(actual).toBe(expected);
+  });
+
+  it('still draws the header', () => {
+    const expected = true;
+    const actual = strip(renderConversationFrame(runStillBeingWritten(), 80).lines[0] ?? '').includes('response');
+    expect(actual).toBe(expected);
+  });
+});

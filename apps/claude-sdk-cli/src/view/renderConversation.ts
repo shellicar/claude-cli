@@ -326,11 +326,19 @@ export function renderConversationFrame(state: IConversationState, cols: number,
     const hasNextContinuation = nextBlock?.type === block.type;
 
     if (!isContinuation && block.type !== 'notice') {
-      const emoji = BLOCK_EMOJI[block.type] ?? '';
-      const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      const header = buildBlockDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt));
-      regions.push({ id: block.id, row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: copyPayload(runFrom(sealedBlocks, i, block)) });
-      allContent.push(header.line);
+      const label = `${BLOCK_EMOJI[block.type] ?? ''}${BLOCK_PLAIN[block.type] ?? block.type}`;
+      const timestamps = blockTimestamps(block.createdAt, block.exitedAt);
+      const run = runFrom(sealedBlocks, i, block);
+      // The run reaches into the block still being written, so what this header answers for is
+      // not finished. Same rule as an open fence: draw the header, offer nothing on it.
+      const stillBeingWritten = i + run.length === sealedBlocks.length && state.activeBlock?.type === block.type;
+      if (stillBeingWritten) {
+        allContent.push(buildDivider(label, cols, timestamps));
+      } else {
+        const header = buildBlockDivider(label, cols, timestamps);
+        regions.push({ id: block.id, row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: copyPayload(run) });
+        allContent.push(header.line);
+      }
       allContent.push('');
     }
     const laid = renderBlockFrameCached(block, block.content, cols, blockRendersMarkdown(block, markdown));
