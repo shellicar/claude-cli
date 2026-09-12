@@ -1,4 +1,5 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
@@ -70,6 +71,10 @@ function buildWorkspaceWith(configLoader: TestConfigLoader, conversationId = CON
     .register(MemoryFileSystem)
     .using(() => fs)
     .as(IFileSystem);
+  services
+    .register(IAgentContext)
+    .using(() => fs)
+    .asSelf();
   services
     .register(ConfigLoader)
     .using(() => configLoader)

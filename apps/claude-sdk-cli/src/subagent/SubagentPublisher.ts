@@ -1,5 +1,5 @@
 import type { Clock } from '@js-joda/core';
-import { ApprovalCoordinator, type DurableConfig, IConversation, ISdkMessagePublisher, type SdkMessage } from '@shellicar/claude-sdk';
+import { type ApprovalCoordinator, type DurableConfig, type IConversation, ISdkMessagePublisher, type SdkMessage } from '@shellicar/claude-sdk';
 import type { ApprovalCorrelation, IApprovalHolder, Settlement } from '../approval/ApprovalHolder.js';
 import type { IBus } from '../bus/IBus.js';
 import { telemetryLeaf } from '../conv/telemetryLeaf.js';
@@ -78,7 +78,7 @@ export class SubagentPublisher extends ISdkMessagePublisher {
     this.toolApprovalState.addTool({ requestId: msg.requestId, name: msg.name, input: msg.input });
     const perm = getPermission({ name: msg.name, input: msg.input }, this.permissionTools, this.cwd, this.matrix);
 
-    if (perm === PermissionAction.NotFound) {
+    if (perm.action === PermissionAction.NotFound) {
       // A lookup failure, not a decision — tell the model the real cause, never the default
       // "Rejected by user": nothing was ever raised, so there's nothing a user rejected.
       const missing = findUnknownTools({ name: msg.name, input: msg.input }, this.permissionTools);
@@ -90,9 +90,9 @@ export class SubagentPublisher extends ISdkMessagePublisher {
 
     let approved: boolean;
     let autoDenyReason: string | undefined;
-    if (perm === PermissionAction.Approve) {
+    if (perm.action === PermissionAction.Approve) {
       approved = true;
-    } else if (perm === PermissionAction.Deny) {
+    } else if (perm.action === PermissionAction.Deny) {
       approved = false;
       // Distinct from a human rejection: no prompt was shown, so "do not reattempt" is the wrong
       // signal — name the cause plainly so the model can adjust rather than reading it as a refusal.

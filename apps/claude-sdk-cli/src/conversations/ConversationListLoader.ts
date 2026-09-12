@@ -1,4 +1,4 @@
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { dependsOn } from '@shellicar/core-di';
 import { IConversationListState } from '../model/ConversationListState.js';
 import { ISqliteSessionStore } from '../persistence/SqliteSessionStore.js';
@@ -20,10 +20,10 @@ export class ConversationListLoader extends IConversationListLoader {
   @dependsOn(ISqliteSessionStore) private readonly sessionStore!: ISqliteSessionStore;
   @dependsOn(IConversationListState) private readonly listState!: IConversationListState;
   @dependsOn(IConversationSummaryLoader) private readonly summaryLoader!: IConversationSummaryLoader;
-  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
 
   public refresh(): void {
-    const ids = this.sessionStore.listByCwd(this.fs.cwd());
+    const ids = this.sessionStore.listByCwd(this.agentContext.cwd());
     this.listState.setEntries(ids);
     this.summaryLoader.load(ids);
   }

@@ -24,56 +24,65 @@ function fsWith(options: { entries?: string[]; links?: Record<string, string> } 
 describe('canonicalisePath', () => {
   it('resolves a relative path against the working directory', () => {
     const expected = '/project/src/file.ts';
-    const actual = canonicalisePath('src/file.ts', fsWith());
+    const fs = fsWith();
+    const actual = canonicalisePath('src/file.ts', fs, fs);
     expect(actual).toBe(expected);
   });
 
   it('collapses dot segments', () => {
     const expected = '/project/src/file.ts';
-    const actual = canonicalisePath('src/nested/../file.ts', fsWith());
+    const fs = fsWith();
+    const actual = canonicalisePath('src/nested/../file.ts', fs, fs);
     expect(actual).toBe(expected);
   });
 
   it('resolves a file that exists through the symlinked directories above it', () => {
     const expected = `${REAL_WORKSPACE}/existing.txt`;
-    const actual = canonicalisePath(`${WORKSPACE}/existing.txt`, fsWith());
+    const fs = fsWith();
+    const actual = canonicalisePath(`${WORKSPACE}/existing.txt`, fs, fs);
     expect(actual).toBe(expected);
   });
 
   it('resolves a file that does not exist yet through the symlinked directories above it', () => {
     const expected = `${REAL_WORKSPACE}/notes.md`;
-    const actual = canonicalisePath(`${WORKSPACE}/notes.md`, fsWith());
+    const fs = fsWith();
+    const actual = canonicalisePath(`${WORKSPACE}/notes.md`, fs, fs);
     expect(actual).toBe(expected);
   });
 
   it('resolves a symlink to the file it points at', () => {
     const expected = '/private/tmp/target/real.txt';
-    const actual = canonicalisePath(`${WORKSPACE}/live-link`, fsWith({ links: { [`${REAL_WORKSPACE}/live-link`]: '/tmp/target/real.txt' } }));
+    const fs = fsWith({ links: { [`${REAL_WORKSPACE}/live-link`]: '/tmp/target/real.txt' } });
+    const actual = canonicalisePath(`${WORKSPACE}/live-link`, fs, fs);
     expect(actual).toBe(expected);
   });
 
   it('resolves a symlink whose target does not exist yet', () => {
     const expected = '/private/tmp/target/not-yet.txt';
-    const actual = canonicalisePath(`${WORKSPACE}/dangling`, fsWith({ links: { [`${REAL_WORKSPACE}/dangling`]: '/tmp/target/not-yet.txt' } }));
+    const fs = fsWith({ links: { [`${REAL_WORKSPACE}/dangling`]: '/tmp/target/not-yet.txt' } });
+    const actual = canonicalisePath(`${WORKSPACE}/dangling`, fs, fs);
     expect(actual).toBe(expected);
   });
 
   it('resolves a file that does not exist yet under a symlinked directory', () => {
     const expected = '/private/tmp/target/brand-new.txt';
-    const actual = canonicalisePath(`${WORKSPACE}/dir-link/brand-new.txt`, fsWith({ links: { [`${REAL_WORKSPACE}/dir-link`]: '/tmp/target' } }));
+    const fs = fsWith({ links: { [`${REAL_WORKSPACE}/dir-link`]: '/tmp/target' } });
+    const actual = canonicalisePath(`${WORKSPACE}/dir-link/brand-new.txt`, fs, fs);
     expect(actual).toBe(expected);
   });
 
   it('resolves a link written relative to the directory holding it', () => {
     const expected = `${REAL_TMP}/claude-501/conversation/sibling.txt`;
-    const actual = canonicalisePath(`${WORKSPACE}/up-link`, fsWith({ links: { [`${REAL_WORKSPACE}/up-link`]: '../sibling.txt' } }));
+    const fs = fsWith({ links: { [`${REAL_WORKSPACE}/up-link`]: '../sibling.txt' } });
+    const actual = canonicalisePath(`${WORKSPACE}/up-link`, fs, fs);
     expect(actual).toBe(expected);
   });
 
   it('follows a chain of links to where it finally points', () => {
     const links = { [`${REAL_WORKSPACE}/first`]: `${WORKSPACE}/second`, [`${REAL_WORKSPACE}/second`]: '/tmp/target/real.txt' };
     const expected = '/private/tmp/target/real.txt';
-    const actual = canonicalisePath(`${WORKSPACE}/first`, fsWith({ links }));
+    const fs = fsWith({ links });
+    const actual = canonicalisePath(`${WORKSPACE}/first`, fs, fs);
     expect(actual).toBe(expected);
   });
 
@@ -83,18 +92,21 @@ describe('canonicalisePath', () => {
   it('resolves a file buried far deeper than any symlink traversal limit', () => {
     const deep = Array.from({ length: 60 }, (_, i) => `d${i}`).join('/');
     const expected = `${REAL_WORKSPACE}/${deep}/buried.txt`;
-    const actual = canonicalisePath(`${WORKSPACE}/${deep}/buried.txt`, fsWith({ entries: [`${REAL_WORKSPACE}/${deep}`] }));
+    const fs = fsWith({ entries: [`${REAL_WORKSPACE}/${deep}`] });
+    const actual = canonicalisePath(`${WORKSPACE}/${deep}/buried.txt`, fs, fs);
     expect(actual).toBe(expected);
   });
 
   it('refuses a symlink loop rather than answering with the path it was given', () => {
     const links = { [`${REAL_WORKSPACE}/loop-a`]: `${WORKSPACE}/loop-b`, [`${REAL_WORKSPACE}/loop-b`]: `${WORKSPACE}/loop-a` };
-    expect(() => canonicalisePath(`${WORKSPACE}/loop-a`, fsWith({ links }))).toThrow();
+    const fs = fsWith({ links });
+    expect(() => canonicalisePath(`${WORKSPACE}/loop-a`, fs, fs)).toThrow();
   });
 
   it('leaves a path with nothing to resolve as its plain absolute form', () => {
     const expected = '/nowhere/at/all.txt';
-    const actual = canonicalisePath('/nowhere/at/all.txt', fsWith());
+    const fs = fsWith();
+    const actual = canonicalisePath('/nowhere/at/all.txt', fs, fs);
     expect(actual).toBe(expected);
   });
 });

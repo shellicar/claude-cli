@@ -1,6 +1,7 @@
 import { basename, dirname, join, sep } from 'node:path';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { canonicalisePath } from '@shellicar/claude-core/fs/canonicalisePath';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di';
@@ -77,6 +78,7 @@ export abstract class IWorkspace {
  */
 export class Workspace extends IWorkspace {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(ConfigLoader) private readonly configLoader!: CliConfigLoader;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(ILogger) private readonly logger!: ILogger;
@@ -132,7 +134,7 @@ export class Workspace extends IWorkspace {
         this.logger.warn('workspace refused', { base, reason: refusal.reason });
         return refusal;
       }
-      const root = canonicalisePath(join(base, id, SCRATCHPAD_DIR), this.fs);
+      const root = canonicalisePath(join(base, id, SCRATCHPAD_DIR), this.fs, this.agentContext);
       await this.fs.mkdir(root, OWNER_ONLY);
       this.#verified = root;
       return null;
@@ -176,7 +178,7 @@ export class Workspace extends IWorkspace {
    * somewhere else, and comparing the string it was asked with would approve writing there.
    */
   public contains(path: string): boolean {
-    return this.#under(path, (p) => canonicalisePath(p, this.fs));
+    return this.#under(path, (p) => canonicalisePath(p, this.fs, this.agentContext));
   }
 
   /**
@@ -192,7 +194,7 @@ export class Workspace extends IWorkspace {
    * symlinked parent, where the delete really does land outside.
    */
   public containsForDelete(path: string): boolean {
-    return this.#under(path, (p) => join(canonicalisePath(dirname(p), this.fs), basename(p)));
+    return this.#under(path, (p) => join(canonicalisePath(dirname(p), this.fs, this.agentContext), basename(p)));
   }
 
   #under(path: string, resolve: (path: string) => string): boolean {

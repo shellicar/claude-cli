@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { expandPath } from './expandPath';
+import type { IAgentContext } from './IAgentContext';
 import type { IFileSystem } from './interfaces';
 
 // Only ever spent following a link the OS could not follow for us, which is a link whose target does
@@ -15,8 +16,8 @@ const MAX_DANGLING_HOPS = 32;
  * a caller that needs a verdict rather than a path decides what to make of that, and a caller that
  * needs a path is better told than handed something that only looks like one.
  */
-export function canonicalisePath(value: string, fs: IFileSystem): string {
-  const absolute = path.resolve(fs.cwd(), expandPath(value, fs));
+export function canonicalisePath(value: string, fs: IFileSystem, ctx: IAgentContext): string {
+  const absolute = path.resolve(ctx.cwd(), expandPath(value, fs, ctx));
   return resolve(absolute, fs, MAX_DANGLING_HOPS);
 }
 

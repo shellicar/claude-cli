@@ -1,5 +1,5 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { CacheTtl, IConversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
@@ -41,7 +41,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(IConvServe) private readonly convServe!: IConvServe;
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
-  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<typeof sdkConfigSchema>;
@@ -135,7 +135,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
   #rebind(previousId: string): void {
     this.convServe.bind(this.session.id);
     this.agentPresence.detach(previousId);
-    this.agentPresence.attach(this.session.id, this.fs.cwd());
+    this.agentPresence.attach(this.session.id, this.agentContext.cwd());
   }
 
   /** Re-derive the status figures for the current id. A fresh id has no audit file, so this reads
