@@ -256,7 +256,20 @@ export function buildBlockDivider(displayLabel: string, cols: number, timestamps
 }
 
 /**
+ * The rows a run of blocks draws, as text. blockContentLines drops one trailing newline
+ * when it lays a block out, so joining the raw contents would paste a blank line the
+ * transcript never drew.
+ */
+function runContent(run: readonly Block[]): string {
+  return run.map((block) => (block.content.endsWith('\n') ? block.content.slice(0, -1) : block.content)).join('\n');
+}
+
+/**
  * What a block's copy affordance puts on the clipboard.
+ *
+ * Consecutive blocks of one type are drawn as a single block under one header, so the
+ * affordance on that header answers for every block beneath it, not just the one that
+ * carried the header. A run of one is the ordinary case.
  *
  * A tools or execution block shows a one-line summary of the calls it made, which is
  * useless pasted anywhere, so it copies the calls themselves as JSON: a tools block is
@@ -264,16 +277,30 @@ export function buildBlockDivider(displayLabel: string, cols: number, timestamps
  * result side and carries each call's name and output. Every other block copies its own
  * content, which is what it displays.
  */
-function copyPayload(block: Block): string {
-  if (block.type !== 'tools' && block.type !== 'execution') {
-    return block.content;
+function copyPayload(run: readonly [Block, ...Block[]]): string {
+  const first = run[0];
+  if (first.type !== 'tools' && first.type !== 'execution') {
+    return runContent(run);
   }
-  const entries = block.tools ?? [];
+  const entries = run.flatMap((block) => block.tools ?? []);
   if (entries.length === 0) {
-    return block.content;
+    return runContent(run);
   }
-  const calls = block.type === 'tools' ? entries.map((entry) => ({ name: entry.name, input: entry.input })) : entries.map((entry) => ({ name: entry.name, output: entry.output }));
+  const calls = first.type === 'tools' ? entries.map((entry) => ({ name: entry.name, input: entry.input })) : entries.map((entry) => ({ name: entry.name, output: entry.output }));
   return JSON.stringify(calls, null, 2);
+}
+
+/** The block and every sealed block drawn beneath its header, which is the run of one type it starts. */
+function runFrom(sealedBlocks: ReadonlyArray<Block>, start: number, block: Block): [Block, ...Block[]] {
+  const run: [Block, ...Block[]] = [block];
+  for (let i = start + 1; i < sealedBlocks.length; i++) {
+    const next = sealedBlocks[i];
+    if (next?.type !== block.type) {
+      break;
+    }
+    run.push(next);
+  }
+  return run;
 }
 
 /**
@@ -302,7 +329,7 @@ export function renderConversationFrame(state: IConversationState, cols: number,
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       const header = buildBlockDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt));
-      regions.push({ id: block.id, row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: copyPayload(block) });
+      regions.push({ id: block.id, row: allContent.length, startCol: header.iconCol, endCol: header.iconCol, text: copyPayload(runFrom(sealedBlocks, i, block)) });
       allContent.push(header.line);
       allContent.push('');
     }

@@ -152,3 +152,47 @@ describe('the header keeps its shape', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('blocks drawn as one carry one affordance for all of them', () => {
+  it('draws a single affordance over a run of the same type', () => {
+    const expected = 1;
+    const actual = renderConversationFrame(sealed({ type: 'response', content: 'First part.' }, { type: 'response', content: 'Second part.' }), 80).regions.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('copies every block under the header, not just the first', () => {
+    const expected = 'First part.\nSecond part.';
+    const actual = renderConversationFrame(sealed({ type: 'response', content: 'First part.' }, { type: 'response', content: 'Second part.' }), 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('joins without the blank line the transcript never drew', () => {
+    const expected = 'First part.\nSecond part.';
+    const actual = renderConversationFrame(sealed({ type: 'response', content: 'First part.\n' }, { type: 'response', content: 'Second part.' }), 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('stops at the end of the run rather than running into the next type', () => {
+    const expected = 'First part.\nSecond part.';
+    const actual = renderConversationFrame(sealed({ type: 'response', content: 'First part.' }, { type: 'response', content: 'Second part.' }, { type: 'thinking', content: 'pondering' }), 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('copies every call across a run of tool blocks', () => {
+    const expected = JSON.stringify(
+      [
+        { name: 'ReadFile', input: { path: 'a.ts' } },
+        { name: 'ExecV3', input: { intent: 'look' } },
+      ],
+      null,
+      2,
+    );
+    const state = buildConversationState();
+    state.addBlocks([
+      { type: 'tools', content: '\u2192 ReadFile', tools: [{ name: 'ReadFile', input: { path: 'a.ts' }, output: null, kind: 'client', phase: 'ok' }] },
+      { type: 'tools', content: '\u2192 ExecV3', tools: [{ name: 'ExecV3', input: { intent: 'look' }, output: null, kind: 'client', phase: 'ok' }] },
+    ]);
+    const actual = renderConversationFrame(state, 80).regions[0]?.text;
+    expect(actual).toBe(expected);
+  });
+});
