@@ -1,26 +1,9 @@
 import type { Clock } from '@js-joda/core';
 import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
+import { performReadHistory } from './performReadHistory';
+import { performSearchHistory } from './performSearchHistory';
 import { ReadHistoryInputSchema, ReadHistoryOutputSchema, SearchHistoryInputSchema, SearchHistoryOutputSchema } from './schema';
-import { parseTimeBound, resolveTimeBound, type TimeBoundEdge } from './timeBound';
-import type { ReadHistoryOutput, SearchHistoryOutput } from './types';
-
-// The store types a block's `type` as the raw string it stored, but only the four searchable block types
-// (text, thinking, tool_use, tool_result) ever reach the FTS index — historyBlocks maps every other block to
-// null text, and a null-text block is never indexed. So a hit's or event's type is always one of the four; this
-// narrows the store's `string` to the enum spec.md's output declares.
-type EventType = SearchHistoryOutput[number]['type'];
-
-// Turn a schema-validated `since`/`until` string into the ISO instant the store compares against, or `undefined`
-// when the field is absent. The schema already rejected a malformed bound, so parseTimeBound never returns null
-// here; the branch is how the nullable oracle is consumed, not a guard against input the schema lets through.
-function resolveBound(value: string | undefined, edge: TimeBoundEdge, clock: Clock): string | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  const parsed = parseTimeBound(value);
-  return parsed === null ? undefined : resolveTimeBound(parsed, edge, clock);
-}
 
 /**
  * The two history tools over the store's read seam (Phase 1). `SearchHistory` locates — a query returns ranked,
@@ -42,12 +25,7 @@ export function createHistoryTools(reader: IHistoryReader, currentSessionId: () 
     output_schema: SearchHistoryOutputSchema,
     input_examples: [{ query: 'why did we drop the reconciliation scan' }, { query: 'sqlite busy_timeout WAL', role: 'assistant', type: 'thinking', since: '2w' }],
     handler: async (input) => {
-      const since = resolveBound(input.since, 'since', clock);
-      const until = resolveBound(input.until, 'until', clock);
-      const excludeConversationId = input.includeCurrentSession ? undefined : currentSessionId();
-      const hits = reader.search({ query: input.query, role: input.role, type: input.type, since, until, excludeConversationId, limit: input.limit });
-      const out = hits.map((hit) => ({ session: hit.conversationId, turnId: hit.turnId, timestamp: hit.timestamp, role: hit.role, type: hit.type as EventType, snippet: hit.snippet }));
-      return { textContent: out satisfies SearchHistoryOutput };
+      return { textContent: performSearchHistory(reader, currentSessionId, clock, input) };
     },
   });
 
@@ -68,14 +46,7 @@ export function createHistoryTools(reader: IHistoryReader, currentSessionId: () 
       },
     ],
     handler: async (input) => {
-      const citations = input.citations.map((citation) => ({ conversationId: citation.session, turnId: citation.turnId }));
-      const windows = reader.read({ citations, window: input.window });
-      const out = windows.map((window) => ({
-        session: window.conversationId,
-        turnId: window.turnId,
-        events: window.events.map((event) => ({ turnId: event.turnId, timestamp: event.timestamp, role: event.role, type: event.type as EventType, text: event.text })),
-      }));
-      return { textContent: out satisfies ReadHistoryOutput };
+      return { textContent: performReadHistory(reader, input) };
     },
   });
 

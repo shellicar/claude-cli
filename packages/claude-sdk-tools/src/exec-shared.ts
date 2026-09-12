@@ -15,6 +15,35 @@ export abstract class IEnvProvider {
   public abstract buildEnv(cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
 }
 
+/**
+ * A provider carrying its own variable overlay on top of a base one. Variables set here win over
+ * everything the base builds, and exist only for as long as this instance does.
+ *
+ * This is what gives one Orchestrate run its own variable namespace: the run clones the ambient
+ * provider, a `captureAs` stage writes its output into the clone, later stages read it — as a
+ * `$NAME` substitution and as a real environment variable in any child process they spawn — and
+ * the whole namespace dies with the run. Nothing a pipeline captures can leak into the next one,
+ * or into the ambient environment, because the base is never written to.
+ */
+export class OverlayEnvProvider extends IEnvProvider {
+  readonly #base: IEnvProvider;
+  readonly #vars: Map<string, string>;
+
+  public constructor(base: IEnvProvider, vars: Map<string, string> = new Map()) {
+    super();
+    this.#base = base;
+    this.#vars = vars;
+  }
+
+  public buildEnv(cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    return { ...this.#base.buildEnv(cmdEnv), ...Object.fromEntries(this.#vars) };
+  }
+
+  public set(name: string, value: string): void {
+    this.#vars.set(name, value);
+  }
+}
+
 /** A strip+provide env transform. `cmdEnv` (the tool call's own per-command env, model-controlled)
  *  is merged FIRST, over `process.env`. `strip` then deletes its keys from that merged result, so a
  *  caller-supplied value cannot survive by riding in through cmdEnv. `provide` is applied LAST,
@@ -32,6 +61,38 @@ export abstract class IEnvProvider {
  *  both `GH_TOKEN` and `GITHUB_TOKEN`, for instance), so the guarantee travels with the provider that
  *  knows it, and doesn't rot when a new provider is added elsewhere without updating a shared list. */
 export type EnvProviderConfig = { strip: string[]; provide: Record<string, () => string> };
+
+/**
+ * Names a call may not set for a process it spawns, because the engine will not honour them and a
+ * command that runs with them quietly ignored is not the command that was asked for.
+ *
+ * Two groups. `PATH` and the loader and interpreter variables decide which file a program name
+ * refers to and what code is loaded into it, so they change what a decision was even about: a rule
+ * that allowed `git` means nothing if `git` is whatever the call put on the path. The credential
+ * names are stripped from the ambient environment anyway, so a call setting one is asking for
+ * something it will not get.
+ *
+ * A variable that redirects one specific program (`GIT_SSH_COMMAND` and its relatives) is not here:
+ * that is the program doing what the program does, which is what a policy rule is for, and `env` is
+ * matchable by name so a rule can name it.
+ */
+export const PROTECTED_ENV_NAMES = [
+  'PATH',
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'NODE_OPTIONS',
+  'GH_TOKEN',
+  'GITHUB_TOKEN',
+  'SSH_AUTH_SOCK',
+  'AZURE_CONFIG_DIR',
+  'AZURE_EXTENSION_DIR',
+  'AZURE_DEVOPS_EXT_PAT',
+  'AZURE_CLIENT_SECRET',
+  'AZURE_PASSWORD',
+  'AZURE_CLIENT_CERTIFICATE_PATH',
+] as const;
 
 export function buildEnvFrom(config: EnvProviderConfig, cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, ...cmdEnv };

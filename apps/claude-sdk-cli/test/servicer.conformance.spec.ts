@@ -138,16 +138,21 @@ function buildApprovalHolder(bus: CapturingBus): IApprovalHolder {
 }
 
 const answerReq = (approved: boolean): Uint8Array => encode({ type: 'answer', ts: TS, from: { kind: 'human', userId: 'stephen' }, approved });
-const req = { type: 'tool_approval_request', requestId: 'apr-1', name: 'DeleteFile', input: { content: { type: 'files', values: ['./old.ts'] } } } satisfies SdkToolApprovalRequest;
+
+/** The approvalId is a uuid minted per ask, so the subject is discovered from what was served
+ *  rather than reconstructed from the requestId. */
+const servedAnswerSubject = (bus: CapturingBus): string => [...bus.serves.keys()].find((s) => s.endsWith('.requests')) ?? '';
+const req = { type: 'tool_approval_request', requestId: 'apr-1', toolUseId: 'apr-1', name: 'DeleteFile', input: { content: { type: 'files', values: ['./old.ts'] } } } satisfies SdkToolApprovalRequest;
 
 describe('servicer conformance — approval', () => {
   it('accepts the first valid answer', () => {
     const bus = new CapturingBus();
     const holder = buildApprovalHolder(bus);
     void holder.raise(req, { conversationId: 'conv-abc', toolUseId: 'toolu_02DEF' });
-    const handler = bus.serves.get('approval.v1.apr-1.requests');
+    const subject = servedAnswerSubject(bus);
+    const handler = bus.serves.get(subject);
     const expected = true;
-    const actual = handler !== undefined ? decode(handler(answerReq(true), 'approval.v1.apr-1.requests')).accepted : undefined;
+    const actual = handler !== undefined ? decode(handler(answerReq(true), subject)).accepted : undefined;
     expect(actual).toBe(expected);
   });
 
@@ -155,13 +160,14 @@ describe('servicer conformance — approval', () => {
     const bus = new CapturingBus();
     const holder = buildApprovalHolder(bus);
     void holder.raise(req, { conversationId: 'conv-abc', toolUseId: 'toolu_02DEF' });
-    const handler = bus.serves.get('approval.v1.apr-1.requests');
+    const subject = servedAnswerSubject(bus);
+    const handler = bus.serves.get(subject);
     if (handler !== undefined) {
-      handler(answerReq(true), 'approval.v1.apr-1.requests');
+      handler(answerReq(true), subject);
       holder.settle('apr-1', { approved: true, by: { kind: 'human', userId: 'stephen' } });
     }
     const expected = 'already_settled';
-    const actual = handler !== undefined ? decode(handler(answerReq(false), 'approval.v1.apr-1.requests')).reason : undefined;
+    const actual = handler !== undefined ? decode(handler(answerReq(false), subject)).reason : undefined;
     expect(actual).toBe(expected);
   });
 });

@@ -39,10 +39,17 @@ export class ApprovalCoordinator {
    * query. Clearing `#toolCancelled` here scopes escalation to a single run:
    * two cancels on the same running tool escalate; one cancel each on two
    * different tools in a batch are two independent tool-cancels.
+   *
+   * An already-aborted controller keeps the flag instead: it is the same run
+   * the first cancel hit, re-registered by a later part of the batch, so
+   * clearing it would read the user's second cancel as a fresh first one and
+   * abort a controller that is already dead rather than cancelling the query.
    */
   public toolRunStarted(controller: AbortController): void {
     this.#toolController = controller;
-    this.#toolCancelled = false;
+    if (!controller.signal.aborted) {
+      this.#toolCancelled = false;
+    }
   }
 
   public toolRunFinished(): void {

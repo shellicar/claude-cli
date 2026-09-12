@@ -1,0 +1,277 @@
+import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { Clock } from '@js-joda/core';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
+import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
+import { withResolvedPaths } from '@shellicar/claude-sdk';
+import type { IExecutor } from '@shellicar/exec-core';
+import type { Operation, Stage, ToolV2 } from '@shellicar/orchestrate-core';
+import { z } from 'zod';
+import type { AzSessionCache } from '../Az/AzSessionCache.js';
+import type { AzDeps } from '../Az/runAz.js';
+import type { AzAccountsConfig } from '../Az/tools.js';
+import type { AdoEscalatedDeps } from '../AzureDevOps/runAdoEscalated.js';
+import type { IEnvProvider } from '../exec-shared.js';
+import { PROTECTED_ENV_NAMES } from '../exec-shared.js';
+import type { GhEscalatedDeps } from '../GitHub/runGhEscalated.js';
+import type { RefStore } from '../RefStore/RefStore.js';
+import { type ToolV2Definition, xargsTargetKeys } from './defineToolV2.js';
+import { planStages, type ToolFactsLookup, type WireStage, type WireToolStage } from './stagePlan.js';
+import { createAppendFileToolV2 } from './tools/AppendFile.js';
+import { createAzToolsV2 } from './tools/Az.js';
+import { createAdoPrToolsV2 } from './tools/AzureDevOps.js';
+import { createCreateFileToolV2 } from './tools/CreateFile.js';
+import { createDeleteToolV2 } from './tools/Delete.js';
+import { createDeleteMemoryToolV2 } from './tools/DeleteMemory.js';
+import { createEditFileToolV2 } from './tools/EditFile.js';
+import { createFindToolV2 } from './tools/Find.js';
+import { createGhPrToolsV2 } from './tools/GitHub.js';
+import { createHeadToolV2 } from './tools/Head.js';
+import { createMatchToolV2 } from './tools/Match.js';
+import { createMemoryTypesToolV2 } from './tools/MemoryTypes.js';
+import { createPathsToolV2 } from './tools/Paths.js';
+import { createProgramToolV2 } from './tools/Program.js';
+import { createRangeToolV2 } from './tools/Range.js';
+import { createReadToolV2 } from './tools/Read.js';
+import { createReadBinaryFileToolV2 } from './tools/ReadBinaryFile.js';
+import { createReadHistoryToolV2 } from './tools/ReadHistory.js';
+import { createReadMemoryToolV2 } from './tools/ReadMemory.js';
+import { createRefToolV2 } from './tools/Ref.js';
+import { createSearchHistoryToolV2 } from './tools/SearchHistory.js';
+import { createSearchMemoryToolV2 } from './tools/SearchMemory.js';
+import { createSkillToolV2 } from './tools/Skill.js';
+import { createTailToolV2 } from './tools/Tail.js';
+import { createTsToolsV2 } from './tools/TypeScript.js';
+import { createWriteMemoryToolV2 } from './tools/WriteMemory.js';
+
+export type ToolsV2RegistryDeps = {
+  fs: IFileSystem;
+  executor: IExecutor;
+  refStore: RefStore;
+  sips: SipsBridge;
+  logger: ILogger;
+  memoryStore: IMemoryStore;
+  historyReader: IHistoryReader;
+  currentSessionId: () => string;
+  clock: Clock;
+  skillDirs: readonly string[];
+  ghDeps: GhEscalatedDeps;
+  adoDeps: AdoEscalatedDeps;
+  azDeps: AzDeps;
+  azSessionCache: AzSessionCache;
+  getAzAccounts: () => AzAccountsConfig;
+  /** The environment every `Program` call runs under — the same provider ExecV3 uses, so a V2 exec
+   *  gets the same credential stripping, and the same variables are available to expand in `args`. */
+  envProvider: IEnvProvider;
+  /** Resolves a marked path field to a single absolute form (expand `~`/`$VAR`, then resolve
+   *  against cwd) — the same contract V1's `ToolRegistry` takes, so both consumers share one
+   *  real implementation. Defaults to identity when omitted. */
+  expand?: (p: string) => string;
+};
+
+// Forward-pointing join to the NEXT stage — absent means sequential (`;`), matching
+// orchestrate-core's `Op` and ExecV3's own convention.
+const OpSchema = z.enum(['|', '&&', '||']);
+
+const XargsStageSchema = z.object({ xargs: z.literal(true).describe("Collect everything piped in and append it to the NEXT stage's own argument field, the way `find | xargs rm -v` appends paths after the fixed arguments. Which field that is belongs to the tool, so it is never named here.") });
+
+export type { WireStage } from './stagePlan.js';
+
+/** Whether the tool itself demands this field, as opposed to accepting it. */
+function isRequiredField(model: z.ZodType, key: string): boolean {
+  if (!(model instanceof z.ZodObject)) {
+    return false;
+  }
+  const field = (model.shape as Record<string, z.ZodType>)[key];
+  return field != null && !field.safeParse(undefined).success;
+}
+
+/** The same model with its xargs target made optional, for the wire parse only. */
+function relaxXargsTarget(model: z.ZodType): z.ZodType {
+  const [key] = xargsTargetKeys(model);
+  if (key == null || !(model instanceof z.ZodObject)) {
+    return model;
+  }
+  const field = (model.shape as Record<string, z.ZodType>)[key] as z.ZodType;
+  return model.extend({ [key]: field.optional() });
+}
+
+/** Every V2 tool Orchestrate can run, and the one place the wire tools array and Orchestrate's
+ *  own stage validation both come from. Each tool is self-describing (its own `model`), so
+ *  there is exactly one schema per tool, never a second hand-copied one — the bug the previous
+ *  pass of this file had, where the stage schema was a separate, manually-kept-in-lockstep
+ *  list. This is Orchestrate's own registry, not V1's `ToolRegistry` — a genuinely separate
+ *  system, per the Tools V2 decision. */
+export class ToolsV2Registry {
+  readonly #defs: Map<string, ToolV2Definition<z.ZodType>>;
+  readonly #stageSchema: z.ZodType<WireStage>;
+  readonly #expand: (p: string) => string;
+  /** The ambient environment a run clones its own variable overlay from (see `runToolV2Call`). */
+  public readonly envProvider: IEnvProvider;
+
+  /** `envProvider` has no default on purpose: every process this registry spawns runs under it, and
+   *  a default would silently hand an unstripped environment to a caller who simply forgot to wire
+   *  one — the credential stripping would be absent and nothing would say so. `expand` does default
+   *  to identity, since an unexpanded path fails visibly rather than quietly widening access. */
+  public constructor(defs: ToolV2Definition<z.ZodType>[], envProvider: IEnvProvider, expand: (p: string) => string = (p) => p) {
+    this.#defs = new Map(defs.map((d) => [d.name, d]));
+    this.#expand = expand;
+    this.envProvider = envProvider;
+    const stageVariants = defs
+      .filter((d) => !d.excludeFromStages)
+      .map((d) =>
+        z.object({
+          tool: z.literal(d.name),
+          // The xargs target is relaxed here and enforced by the sequence check below: whether it
+          // is required depends on whether an `Xargs` precedes this stage, which a per-stage
+          // schema cannot see. Every other field stays strict, and the target is still checked
+          // for real once injection has happened (see `toStage`'s wrapped `run`).
+          input: relaxXargsTarget(d.model),
+          op: OpSchema.optional(),
+          showStderr: z.boolean().optional(),
+          captureAs: z
+            .string()
+            .regex(/^\w+$/)
+            .refine((name) => !PROTECTED_ENV_NAMES.includes(name as (typeof PROTECTED_ENV_NAMES)[number]), {
+              message: `a capture becomes an environment variable for every later stage, so it cannot take one of these names: ${PROTECTED_ENV_NAMES.join(', ')}`,
+            })
+            .optional()
+            .describe("Store this stage's output in a variable of this name, instead of only piping it. A spawned process sees it as a real environment variable. The variable lives for this call only."),
+        }),
+      );
+    this.#stageSchema = z.union([z.discriminatedUnion('tool', stageVariants as unknown as [z.ZodObject, ...z.ZodObject[]]), XargsStageSchema]) as z.ZodType<WireStage>;
+  }
+
+  /** Every registered tool gets its own wire entry, same as V1's `Find`/`Paths` sources are
+   *  both a pipe step and standalone-callable — a V2 tool is genuinely a tool, callable
+   *  directly, not merely a shape hidden inside Orchestrate's own schema. */
+  public get wireTools(): BetaTool[] {
+    return Array.from(this.#defs.values()).map((d) => ({
+      name: d.name,
+      description: d.description,
+      input_schema: d.model.toJSONSchema({ target: 'draft-07', io: 'input' }) as BetaTool['input_schema'],
+    }));
+  }
+
+  /** The `stages` array shape Orchestrate's own wire tool takes — a discriminated union built
+   *  from every registered tool's own `model`, plus `Xargs`. Generated, not hand-authored.
+   *  Rejects a trailing `op` on the last stage — there is nothing after it to join to, so it
+   *  can only be a mistake, same as ExecV3's own dangling-operator validation. */
+  public get stageSchema(): z.ZodType<{ stages: WireStage[] }> {
+    return z.object({ stages: z.array(this.#stageSchema).min(1) }) as unknown as z.ZodType<{ stages: WireStage[] }>;
+  }
+
+  /** What the sequence rules need to know about a tool, drawn from its own declarations. */
+  readonly #facts: ToolFactsLookup = (name) => {
+    const def = this.#defs.get(name);
+    if (def == null) {
+      return undefined;
+    }
+    const target = xargsTargetKeys(def.model)[0];
+    return { xargsTarget: target, xargsTargetRequired: target != null && isRequiredField(def.model, target), readsUpstream: def.readsUpstream === true };
+  };
+
+  /** A whole call, checked and built in one pass: the shape, then the sequence, then the stages. */
+  public planCall(input: unknown): { ok: true; stages: Stage[] } | { ok: false; error: string } {
+    const parsed = this.stageSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.message };
+    }
+    const plan = planStages(parsed.data.stages, this.#facts);
+    if (!plan.ok) {
+      return { ok: false, error: plan.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('\n') };
+    }
+    return { ok: true, stages: plan.stages.map((stage) => (stage.kind === 'xargs' ? ({ kind: 'xargs', parameter: stage.parameter } satisfies Stage) : this.toStage(stage.wire))) };
+  }
+
+  public get(name: string): ToolV2Definition<z.ZodType> | undefined {
+    return this.#defs.get(name);
+  }
+
+  /** Resolves one already-parsed wire stage into a real `orchestrate-core` `Stage`, validating
+   *  the stage's own `input` against its tool's `model` (not a second schema), then giving the
+   *  tool's own `resolveDefaults` a chance to fill in anything it knows from its own injected
+   *  dependency (e.g. `Program.cwd` defaulting to `fs.cwd()`) — the resolved value this
+   *  produces is what Policy sees, the same as an explicitly-supplied one. Throws on a name
+   *  outside the registry — the discriminated union already makes that a parse error before
+   *  this is ever reached, so reaching it with an unknown name is a real bug, not user input. */
+  public toStage(wire: WireToolStage): Stage {
+    const def = this.#defs.get(wire.tool);
+    if (def == null) {
+      throw new Error(`Orchestrate: "${wire.tool}" is not in the Tools V2 registry`);
+    }
+    // Relaxed, because an Xargs-fed stage legitimately arrives without its target field; the
+    // strict parse happens in `run` below, once injection has actually filled it in.
+    const parsedInput = relaxXargsTarget(def.model).parse(wire.input);
+    const resolvedInput = def.resolveDefaults ? def.resolveDefaults(parsedInput) : parsedInput;
+    const captureAs = wire.captureAs;
+    const model = def.model;
+    const expand = this.#expand;
+    // Everything `execute()` assembled, including whatever an Xargs appended, checked against the
+    // tool's real schema and with every marked path resolved to the file it names. This is what
+    // Policy judges and what a human is shown, because it is what the tool will act on: judging
+    // the unexpanded form let `$HOME/.ssh/id_rsa` read as a path inside the working directory.
+    // Variables first, then paths: a path may itself be written as `$SOMEWHERE`, and resolving it
+    // before the variable is resolved would settle the wrong thing.
+    const prepare = (input: unknown, env?: unknown): unknown => {
+      const parsed = model.parse(input);
+      const settled = def.settleInput ? def.settleInput(parsed, env as IEnvProvider) : parsed;
+      return withResolvedPaths(model, settled, expand);
+    };
+    const run: ToolV2<unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(input, upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown>['run']>;
+    const operations = def.operations ?? ((): Operation[] => (def.operation != null ? [def.operation] : ['none']));
+    const tool: ToolV2<unknown> = { name: def.name, operations: operations as (input: unknown) => Operation[], run };
+    return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr, captureAs, prepare };
+  }
+}
+
+/** Builds the registry with every real V2 tool wired to its dependencies. */
+export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registry {
+  return new ToolsV2Registry(
+    [
+      createFindToolV2(deps.fs),
+      createPathsToolV2(deps.fs),
+      createMatchToolV2(),
+      createHeadToolV2(),
+      createTailToolV2(),
+      createRangeToolV2(),
+      createReadToolV2(deps.fs),
+      createReadBinaryFileToolV2(deps.fs, deps.sips, deps.logger),
+      createProgramToolV2(deps.executor, deps.fs, deps.envProvider),
+      createDeleteToolV2(deps.fs),
+      createRefToolV2(deps.refStore),
+      createCreateFileToolV2(deps.fs),
+      createAppendFileToolV2(deps.fs),
+      createEditFileToolV2(deps.fs),
+      createWriteMemoryToolV2(deps.memoryStore),
+      createReadMemoryToolV2(deps.memoryStore),
+      createSearchMemoryToolV2(deps.memoryStore),
+      createDeleteMemoryToolV2(deps.memoryStore),
+      createMemoryTypesToolV2(deps.memoryStore),
+      createSearchHistoryToolV2(deps.historyReader, deps.currentSessionId, deps.clock),
+      createReadHistoryToolV2(deps.historyReader),
+      createSkillToolV2(deps.fs, deps.skillDirs, deps.logger),
+      ...createGhPrToolsV2(deps.ghDeps),
+      ...createAdoPrToolsV2(deps.adoDeps, deps.getAzAccounts, deps.azSessionCache),
+      ...createAzToolsV2(deps.azDeps, deps.getAzAccounts, deps.azSessionCache),
+      ...createTsToolsV2(),
+    ],
+    deps.envProvider,
+    deps.expand,
+  );
+}
+
+/** Every wire entry Tools V2 contributes to the model's tools array: every registered tool
+ *  individually (so `Find` is directly callable, same as V1's `Find`/`Paths` pipe sources are),
+ *  plus `Orchestrate` itself, whose `stages` schema is generated from those same tools —
+ *  nothing here is a second, hand-authored copy of any tool's shape. */
+export function toolsV2WireTools(registry: ToolsV2Registry): BetaTool[] {
+  const orchestrate: BetaTool = {
+    name: 'Orchestrate',
+    description: 'Runs a sequence of Tools V2 tools, joined by | (pipe stdout into the next stage) / && / || (gate on success/failure) / absent (sequential). Composes any registered tool with any other.',
+    input_schema: registry.stageSchema.toJSONSchema({ target: 'draft-07', io: 'input' }) as BetaTool['input_schema'],
+  };
+  return [...registry.wireTools, orchestrate];
+}

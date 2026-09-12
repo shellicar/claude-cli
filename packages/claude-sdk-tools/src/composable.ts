@@ -32,6 +32,11 @@ export type ComposableTool<TModel extends z.ZodType = z.ZodType, TIn extends Edg
   // schema) or `pipe`. The reconciler itself is `reconcileDefault`, applied once by whoever runs the
   // tool (the Pipe, or `toStandalone`), so the model/stream bridge lives in exactly one place.
   run: (canonical: Canonical<z.output<TModel>, TIn>) => Promise<StreamOut<TOut>>;
+
+  /** The tool's own one-line rendering of its resolved model — same contract as
+   *  `AnyToolDefinition.summarize`. Runs on the model alone (never the reconciled canonical),
+   *  since that's what a standalone call or a pipe step's own summary shows. */
+  summarize?: (model: z.output<TModel>) => string;
 };
 
 /** The reconciler — the sole place model and stream meet. A stage grafts the upstream stream under a
@@ -62,6 +67,7 @@ export function toStandalone(t: ComposableTool): AnyToolDefinition {
     input_schema: t.model,
     output_schema: z.union([z.string(), z.object({ tool: z.string(), error: z.string() })]),
     input_examples: t.input_examples as Record<string, unknown>[],
+    summarize: t.summarize as ((input: unknown) => string) | undefined,
     handler: async (model: unknown) => {
       try {
         const out = await t.run(reconcile(model, undefined) as never);

@@ -1,7 +1,15 @@
 import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { ToolAttachmentBlock, ToolDefinition } from '@shellicar/claude-sdk';
+import type { IScopedProvider } from '@shellicar/core-di';
 import type { z } from 'zod';
+
+/** A fake block scope whose `resolve` always returns the given instance, regardless of the
+ *  identifier asked for — enough for a tool that resolves exactly one scoped dependency
+ *  (e.g. the TS tools' `ITypeScriptService`) from `scope` at call time. */
+export function fakeScope(instance: unknown): IScopedProvider {
+  return { resolve: () => instance } as unknown as IScopedProvider;
+}
 
 /** Test double: sips unavailable, so ReadFile images pass through unconditioned. */
 export const passthroughSips: SipsBridge = {
@@ -12,8 +20,8 @@ export const passthroughSips: SipsBridge = {
 /** Test double: a logger that discards everything, so the tool builds without the app's logger. */
 export const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
-export async function call<T extends z.ZodType, TOut extends z.ZodType>(tool: ToolDefinition<T, TOut>, input: z.input<T>): Promise<z.output<TOut>> {
-  const { textContent } = await tool.handler(tool.input_schema.parse(input));
+export async function call<T extends z.ZodType, TOut extends z.ZodType>(tool: ToolDefinition<T, TOut>, input: z.input<T>, scope?: IScopedProvider): Promise<z.output<TOut>> {
+  const { textContent } = await tool.handler(tool.input_schema.parse(input), undefined, scope);
   return textContent;
 }
 

@@ -1,0 +1,1 @@
+{"description":"New package: a runtime for composing tools into a pipeline — plan and execute a list of stages joined by |, && and ||, stream one stage's output into the next, fan a batch out with Xargs, and capture a stage's output as a named variable later stages reference","category":"added"}

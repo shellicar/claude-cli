@@ -35,6 +35,7 @@ class ThrowingLauncher extends IProcessLauncher {
 const testRequest: SdkToolApprovalRequest = {
   type: 'tool_approval_request',
   requestId: 'req-1',
+  toolUseId: 'req-1',
   name: 'DeleteFile',
   input: { path: '/tmp/test.ts' },
 };

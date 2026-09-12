@@ -14,7 +14,7 @@ describe('TsDefinition', () => {
   });
 
   afterAll(async () => {
-    await service.blockEnded();
+    await service[Symbol.asyncDispose]();
   });
 
   describe('navigating to definitions', () => {

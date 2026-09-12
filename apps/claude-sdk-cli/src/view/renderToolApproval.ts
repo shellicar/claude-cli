@@ -31,7 +31,8 @@ export function renderToolApproval(state: IToolApprovalState, cols: number, maxR
     const prefix = state.hasPendingApprovals ? 'Allow ' : '';
     const approval = state.hasPendingApprovals ? '  [Y/N]' : '';
     const expand = state.toolExpanded ? ' [space: collapse]' : ' [space: expand]';
-    const row = ` ${prefix}Tool: ${tool.name}${nav}${approval}${expand}`;
+    const stage = tool.stageCount != null && tool.stageCount > 1 ? ` (stage ${tool.stageIndex} of ${tool.stageCount})` : '';
+    const row = ` ${prefix}Tool: ${tool.name}${stage}${nav}${approval}${expand}`;
     approvalRow = state.hasPendingApprovals && state.flashPhase ? `\x1b[7m${row}\x1b[27m` : row;
   }
 

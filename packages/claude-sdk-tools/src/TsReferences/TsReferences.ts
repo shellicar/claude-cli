@@ -1,12 +1,12 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
 import { groupByFile } from '../typescript/groupByFile';
-import type { ITypeScriptService } from '../typescript/ITypeScriptService';
+import { ITypeScriptService } from '../typescript/ITypeScriptService';
 import { TsReferencesInputSchema, TsReferencesOutputSchema } from './schema';
 
 export type TsReferencesOutput = z.output<typeof TsReferencesOutputSchema>;
 
-export function createTsReferences(ts: ITypeScriptService) {
+export function createTsReferences() {
   return defineTool({
     operation: 'read',
     name: 'TsReferences',
@@ -14,7 +14,11 @@ export function createTsReferences(ts: ITypeScriptService) {
     input_schema: TsReferencesInputSchema,
     output_schema: TsReferencesOutputSchema,
     input_examples: [{ file: 'src/index.ts', line: 5, character: 13 }],
-    handler: async (input) => {
+    handler: async (input, _signal, scope) => {
+      if (scope == null) {
+        throw new Error('TsReferences requires a block scope to resolve ITypeScriptService');
+      }
+      const ts = scope.resolve(ITypeScriptService);
       const references = await ts.getReferences({
         file: input.file,
         line: input.line,

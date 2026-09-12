@@ -29,6 +29,20 @@ describe('resolveAzAccount', () => {
       expect(() => resolveAzAccount(() => multiple, 'reader', undefined)).toThrow(expected);
     });
 
+    // Without the names, the only way to find out what to pass is to go and read the config file.
+    it('names the accounts that could have been chosen', () => {
+      const expected = 'shellicar, hopeventures';
+      const actual = (() => {
+        try {
+          resolveAzAccount(() => multiple, 'reader', undefined);
+          return '';
+        } catch (err) {
+          return err instanceof Error ? err.message : '';
+        }
+      })();
+      expect(actual).toContain(expected);
+    });
+
     it('resolves to the requested account when it matches', () => {
       const expected = 'hopeventures';
       const actual = resolveAzAccount(() => multiple, 'holder', 'hopeventures');

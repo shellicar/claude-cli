@@ -29,7 +29,8 @@ export function resolveAzAccount(getAccounts: () => AzAccountsConfig, identity: 
   }
   const account = requested ?? (fallback != null && configured.includes(fallback) ? fallback : undefined) ?? (configured.length === 1 ? configured[0] : undefined);
   if (account == null) {
-    throw new Error('account is required when more than one Azure account is configured');
+    // Name them: otherwise the only way to discover what to pass is to go and read the config file.
+    throw new Error(`account is required when more than one Azure account is configured: ${configured.join(', ')}`);
   }
   if (!configured.includes(account)) {
     throw new Error(`account '${account}' has no ${identity} identity configured`);

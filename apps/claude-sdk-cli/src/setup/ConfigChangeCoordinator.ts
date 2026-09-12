@@ -6,6 +6,7 @@ import { IConversationState } from '../model/ConversationState.js';
 import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
 import { StatusState } from '../model/StatusState.js';
+import { IPolicyNotifier } from './ConfigPolicyProvider.js';
 import { IRulesConfigNotifier } from './ConfigRulesConfigProvider.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { ITurnCoordinator } from './TurnCoordinator.js';
@@ -22,6 +23,9 @@ export abstract class IConfigChangeCoordinator {
  * - `IRulesConfigNotifier`: tools.rules/tools.blockedCommands validate and watch independently of
  *   the whole-document reload, so it never fires through `configLoader.onChange` and needs its own
  *   splice point.
+ * - `IPolicyNotifier`: `policy` validates and watches independently the same way, for the same
+ *   reason — a broken policy edit must only pin policy to its last-good value, not block every
+ *   other unrelated fix in the same config reload.
  * - `configLoader.onChange`: the whole-document reload. Defers the live status update until the
  *   turn between requests (`turnCoordinator.inProgress`) so a reload mid-turn doesn't flash stale
  *   figures.
@@ -31,6 +35,7 @@ export abstract class IConfigChangeCoordinator {
  */
 export class ConfigChangeCoordinator extends IConfigChangeCoordinator {
   @dependsOn(IRulesConfigNotifier) private readonly rulesConfigNotifier!: IRulesConfigNotifier;
+  @dependsOn(IPolicyNotifier) private readonly policyNotifier!: IPolicyNotifier;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(PermissionsNoticeGate) private readonly permissionsNoticeGate!: PermissionsNoticeGate;
   @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
@@ -49,6 +54,16 @@ export class ConfigChangeCoordinator extends IConfigChangeCoordinator {
         this.conversationState.spliceNotice('\u2705 tools.rules/tools.blockedCommands valid again');
       } else {
         this.conversationState.spliceNotice('\ud83d\udee1\ufe0f tools.rules/tools.blockedCommands updated');
+      }
+    });
+
+    this.policyNotifier.onNotice((notice) => {
+      if (notice.kind === 'invalid') {
+        this.conversationState.spliceNotice(`\u26a0\ufe0f policy is invalid \u2014 keeping the previous policy (${notice.error})`);
+      } else if (notice.kind === 'recovered') {
+        this.conversationState.spliceNotice('\u2705 policy valid again');
+      } else {
+        this.conversationState.spliceNotice('\ud83d\udee1\ufe0f policy updated');
       }
     });
 

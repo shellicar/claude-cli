@@ -18,23 +18,19 @@ export function createRef(store: RefStore, threshold: number): CreateRefResult {
     output_schema: RefOutputSchema,
     input_examples: [{ id: 'uuid-...' }, { id: 'uuid-...', start: 1000, limit: 1000 }],
     handler: async (input) => {
-      const content = store.get(input.id);
-      if (content === undefined) {
+      const slice = store.getSlice(input.id, input.start, input.limit);
+      if (slice === undefined) {
         return { textContent: { found: false, id: input.id } satisfies RefOutput };
       }
-
-      const start = input.start;
-      const end = Math.min(start + input.limit, content.length);
-      const slice = content.slice(start, end);
 
       return {
         textContent: {
           found: true,
           hint: store.getHint(input.id),
-          content: slice,
-          totalSize: content.length,
-          start,
-          end,
+          content: slice.content,
+          totalSize: slice.totalSize,
+          start: slice.start,
+          end: slice.end,
         } satisfies RefOutput,
       };
     },

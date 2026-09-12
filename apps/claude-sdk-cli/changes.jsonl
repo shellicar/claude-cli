@@ -178,3 +178,5 @@
 {"description":"New http.allowH2 setting, off by default, so API requests negotiate HTTP/1.1","category":"added"}
 {"description":"An error written to the log keeps its name, message, stack and cause instead of rendering as an empty object","category":"fixed"}
 {"description":"Each connection logs the HTTP protocol it negotiated","category":"added"}
+{"description":"Orchestrate is now available: a single call runs several tools as a pipeline, each stage approved on its own and shown with its position in the pipeline","category":"added"}
+{"description":"Tool approvals for pipeline stages are now decided by a policy section in config, validated and watched on its own so a broken edit pins only the policy to its last-good version and an invalid initial policy falls back to asking about everything","category":"added"}

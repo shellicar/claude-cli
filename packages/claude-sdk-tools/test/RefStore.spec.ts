@@ -16,6 +16,43 @@ describe('RefStore — store and retrieve', () => {
   });
 });
 
+describe('RefStore.getSlice', () => {
+  it('returns the requested character range', () => {
+    const store = new RefStore(new MemoryObjectStore());
+    const id = store.store('0123456789');
+
+    const expected = '2345';
+    const actual = store.getSlice(id, 2, 4)?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('caps the end at the content length when limit overruns it', () => {
+    const store = new RefStore(new MemoryObjectStore());
+    const id = store.store('short');
+
+    const expected = 5;
+    const actual = store.getSlice(id, 0, 10_000)?.end;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns undefined for an unknown id', () => {
+    const store = new RefStore(new MemoryObjectStore());
+
+    const expected = undefined;
+    const actual = store.getSlice('does-not-exist', 0, 10);
+    expect(actual).toBe(expected);
+  });
+
+  it('reports the total size of the underlying content, not the slice', () => {
+    const store = new RefStore(new MemoryObjectStore());
+    const id = store.store('0123456789');
+
+    const expected = 10;
+    const actual = store.getSlice(id, 0, 4)?.totalSize;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('RefStore.walkAndRef — passthrough', () => {
   it('passes through short strings unchanged', () => {
     const store = new RefStore(new MemoryObjectStore());

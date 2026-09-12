@@ -31,6 +31,8 @@ export type RequestBuilderOptions = {
   tools: AnyToolDefinition[];
   /** Server-side tools prepended to the wire tools array before client tools. */
   serverTools?: BetaToolUnion[];
+  /** Tools V2's own wire entries — already wire-shaped, not converted via `toWireTool`/`transformTool` (those are V1-only). */
+  toolsV2?: BetaToolUnion[];
   /** Applied to each client tool after conversion. Used to add ATU-specific fields without the SDK needing to know about them. */
   transformTool?: (tool: BetaToolUnion) => BetaToolUnion;
   betas?: AnthropicBetaFlags;
@@ -142,12 +144,19 @@ export function toWireTool(tool: AnyToolDefinition): BetaToolUnion {
  * client, since the signal is tied to the per-query abort lifecycle.
  */
 export function buildRequestParams(options: RequestBuilderOptions, messages: Anthropic.Beta.Messages.BetaMessageParam[]): RequestParams {
-  const customTools: BetaToolUnion[] = options.tools.map((t) => {
-    const wire = toWireTool(t);
-    return options.transformTool ? options.transformTool(wire) : wire;
-  });
+  // A name registered in both V1 and V2 must appear on the wire exactly once — the API
+  // rejects duplicate tool names outright — and V2 wins: it's the tool actively being built
+  // out to replace its V1 counterpart, so the V1 entry for that name is simply not sent,
+  // never the reverse.
+  const toolsV2Names = new Set((options.toolsV2 ?? []).filter((t): t is Extract<BetaToolUnion, { name: string }> => 'name' in t).map((t) => t.name));
+  const customTools: BetaToolUnion[] = options.tools
+    .filter((t) => !toolsV2Names.has(t.name))
+    .map((t) => {
+      const wire = toWireTool(t);
+      return options.transformTool ? options.transformTool(wire) : wire;
+    });
 
-  const tools: BetaToolUnion[] = [...(options.serverTools ?? []), ...customTools];
+  const tools: BetaToolUnion[] = [...(options.serverTools ?? []), ...(options.toolsV2 ?? []), ...customTools];
 
   const betas = resolveCapabilities(options.betas, AnthropicBeta);
 

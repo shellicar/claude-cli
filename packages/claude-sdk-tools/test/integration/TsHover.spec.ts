@@ -14,7 +14,7 @@ describe('TsHover', () => {
   });
 
   afterAll(async () => {
-    await service.blockEnded();
+    await service[Symbol.asyncDispose]();
   });
 
   describe('type info', () => {
