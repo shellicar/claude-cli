@@ -1,6 +1,7 @@
 import { IDurableConfigProvider, type SdkMessage } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
-import { IConversationSession } from '../model/ConversationSession.js';
+import { ICurrentQueryId } from './QueryScope.js';
+import { ICurrentTurnId } from './TurnScope.js';
 
 /** The conv telemetry bodies (minus the envelope `ts`, which `stamp` adds). One per spec telemetry event. */
 export type ConvTelemetryBody =
@@ -20,20 +21,20 @@ export abstract class IConvTelemetryProjector {
 }
 
 /**
- * `TapProjector` re-cut to the conv telemetry events. Reads the round's ids off the conversation tip (the
- * locked "served off the in-memory array") and the request inputs from the durable config, because the
- * SDK's bare `message_start` carries neither. `tool_use_start` only records the name; the `tool_use`
+ * `TapProjector` re-cut to the conv telemetry events. Reads the live query and turn from the scopes that
+ * opened them, and the request inputs from the durable config, because the SDK's bare `message_start`
+ * carries neither. `tool_use_start` only records the name; the `tool_use`
  * event fires on `tool_use_input_stop` once the input is complete.
  */
 export class ConvTelemetryProjector extends IConvTelemetryProjector {
-  @dependsOn(IConversationSession) private readonly session!: IConversationSession;
+  @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
+  @dependsOn(ICurrentTurnId) private readonly turn!: ICurrentTurnId;
   @dependsOn(IDurableConfigProvider) private readonly durable!: IDurableConfigProvider;
   readonly #toolNames = new Map<string, string>();
 
   public fromSdk(msg: SdkMessage): ConvTelemetryBody | null {
-    const tip = this.session.conversationTip();
-    const queryId = tip?.queryId ?? '';
-    const turnId = tip?.turnId ?? '';
+    const queryId = this.query.queryId ?? '';
+    const turnId = this.turn.turnId ?? '';
     switch (msg.type) {
       case 'message_start': {
         // WRONG, NOT TECH-DEBT (deliberate v1 limitation, SC-ruled): model/thinking/effort/maxTokens are
@@ -67,7 +68,6 @@ export class ConvTelemetryProjector extends IConvTelemetryProjector {
 
   /** A cancel accepted mid-turn — someone decided. Driven from the consumerChannel outcome. */
   public cancelled(): ConvTelemetryBody {
-    const tip = this.session.conversationTip();
-    return { type: 'turn_cancelled', queryId: tip?.queryId ?? '', turnId: tip?.turnId ?? '' };
+    return { type: 'turn_cancelled', queryId: this.query.queryId ?? '', turnId: this.turn.turnId ?? '' };
   }
 }

@@ -9,7 +9,9 @@ import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { IAgentPresence } from '../src/agent/AgentPresence.js';
+import { IConversationAdopter } from '../src/conv/ConvCommitter.js';
 import { IConvServe } from '../src/conv/ConvServe.js';
+import { IAuditTip } from '../src/conversations/auditTip.js';
 import { logger } from '../src/logger.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
@@ -25,6 +27,8 @@ import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 const EXISTING_ID = '11111111-1111-4111-8111-111111111111';
+/** The position the durable record holds for a conversation, as the audit reports it. */
+const RECORDED_TIP = '33333333-3333-4333-8333-333333333333';
 const OTHER_ID = '22222222-2222-4222-8222-222222222222';
 
 /** Test double: a logger that discards everything, so the switcher resolves without the app's logger. */
@@ -86,6 +90,23 @@ function makeSwitcher(workspace = new FakeWorkspace()) {
     .register(FakeWorkspace)
     .using(() => workspace)
     .as(IWorkspace);
+  // What the durable record says the conversation's position is, and what the switcher does with it.
+  const adopted: (string | null)[] = [];
+  services
+    .register(IAuditTip)
+    .using(() => ({ read: async () => RECORDED_TIP }) as IAuditTip)
+    .asSelf();
+  services
+    .register(IConversationAdopter)
+    .using(
+      () =>
+        ({
+          adopt: (tip: string | null) => {
+            adopted.push(tip);
+          },
+        }) as IConversationAdopter,
+    )
+    .asSelf();
   services.register(ConversationSwitcher).asSelf().as(IConversationSwitcher);
   const provider = services.buildProvider();
   return {
@@ -95,8 +116,21 @@ function makeSwitcher(workspace = new FakeWorkspace()) {
     conversationState: provider.resolve(ConversationState),
     statusState: provider.resolve(StatusState),
     primaryViewState: provider.resolve(PrimaryViewState),
+    adopted,
   };
 }
+
+describe('ConversationSwitcher — the conversation position', () => {
+  // Arriving at a conversation, the CLI has to know where it left off: that position is what another
+  // client states to be allowed to speak, and it comes from the durable record rather than memory.
+  it('takes up the position the durable record holds for the conversation it moves to', async () => {
+    const { switcher, adopted } = makeSwitcher();
+    await switcher.switchTo(EXISTING_ID);
+    const expected = [RECORDED_TIP];
+    const actual = adopted;
+    expect(actual).toEqual(expected);
+  });
+});
 
 describe('ConversationSwitcher — switchTo', () => {
   it('adopts the target id as the live conversation', async () => {

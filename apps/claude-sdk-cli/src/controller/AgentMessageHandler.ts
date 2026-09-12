@@ -7,7 +7,10 @@ import { type AnyToolDefinition, calculateCostSplit, collectPaths, type DurableC
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { dependsOn } from '@shellicar/core-di';
 import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
-import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
+import { IAssistantMessageScope } from '../conv/AssistantMessageScope.js';
+import { IMessageCommitter } from '../conv/ConvCommitter.js';
+import { ICurrentQueryId, ICurrentSender } from '../conv/QueryScope.js';
+import { ITurnScope } from '../conv/TurnScope.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { CONTENT_INDENT } from '../model/blockLayout.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -194,7 +197,11 @@ export class AgentMessageHandler {
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IApprovalHolder) private readonly approvalHolder!: IApprovalHolder;
-  @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
+  @dependsOn(IMessageCommitter) private readonly commit!: IMessageCommitter;
+  @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
+  @dependsOn(ICurrentSender) private readonly sender!: ICurrentSender;
+  @dependsOn(ITurnScope) private readonly turn!: ITurnScope;
+  @dependsOn(IAssistantMessageScope) private readonly assistantMessage!: IAssistantMessageScope;
   @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
   #lastUsage: SdkMessageUsage | null = null;
   #toolObjects = new Map<string, ToolObject>();
@@ -227,6 +234,9 @@ export class AgentMessageHandler {
   public handle(msg: SdkMessage): void {
     switch (msg.type) {
       case 'query_summary': {
+        // Open the turn here: query_summary is published once per request, before it goes out, so the
+        // id is in place for the telemetry and the approval raise that follow.
+        this.turn.begin();
         // Send-time persistence. query_summary is published once per turn, right
         // before the interruptible request, after the user message that opens the
         // turn is already in the conversation — the end-human message at query
@@ -236,7 +246,7 @@ export class AgentMessageHandler {
         // contract as the after-assistant save (cf. known debt #1).
         void this.session
           .saveConversation()
-          .then(() => this.convChanges.flush(this.session.id))
+          .then(() => this.commit.announceTip(this.session.id, this.query.queryId ?? '', this.turn.turnId ?? '', this.sender.from))
           .catch((err) => this.logger.error('persist on send failed', { error: String(err) }));
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
         this.conversation.transitionBlock('meta');
@@ -435,16 +445,22 @@ export class AgentMessageHandler {
         this.conversation.appendStreaming(`\n\n[error: ${formatSdkError(msg)}]`);
         this.logger.error('error', { message: msg.message, detail: msg.detail });
         break;
-      case 'turn_content':
+      case 'turn_content': {
+        // The assistant's id was minted when its message arrived, at final_message, so the audit and
+        // this publish carry the same one.
+        const assistantMessageId = this.assistantMessage.messageId ?? '';
+        const assistantQueryId = this.query.queryId ?? '';
+        const assistantTurnId = this.turn.turnId ?? '';
         // Persist after each assistant turn. The assistant content cannot be
         // regenerated, so save it the moment the turn completes (before the next
         // turn's tool round-trip). Fire-and-forget: a persist failure must not
         // interrupt the turn — it is logged, never thrown (cf. known debt #1).
         void this.session
           .saveConversation()
-          .then(() => this.convChanges.flush(this.session.id))
+          .then(() => this.commit.announceAssistant(this.session.id, assistantMessageId, assistantQueryId, assistantTurnId))
           .catch((err) => this.logger.error('persist after turn failed', { error: String(err) }));
         break;
+      }
     }
   }
 
@@ -517,8 +533,7 @@ export class AgentMessageHandler {
         // A human actually waits here (auto-approve/auto-deny settle without a prompt, above). Raise the
         // ask on the wire and race the local keypress against a wire answer — first valid answer wins.
         // When the bus is disabled the raise is a zero-effect no-op and only the local keypress can win.
-        const tip = this.session.conversationTip();
-        const wireAnswer = this.approvalHolder.raise(msg, { conversationId: this.session.id, queryId: tip?.queryId, turnId: tip?.turnId, toolUseId: msg.requestId });
+        const wireAnswer = this.approvalHolder.raise(msg, { conversationId: this.session.id, queryId: this.query.queryId, turnId: this.turn.turnId, toolUseId: msg.requestId });
         this.notifier.start(msg);
         const localAnswer = this.tools.requestApproval(msg.requestId).then((a): Settlement => ({ approved: a, by: { kind: 'human' } }));
         const settlement = await Promise.race([localAnswer, wireAnswer]);

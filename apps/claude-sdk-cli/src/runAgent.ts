@@ -1,6 +1,6 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaImageBlockParam, BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { QueryRunner, Sender, SystemReminder, TransformToolResult } from '@shellicar/claude-sdk';
+import type { QueryRunner, SystemReminder, TransformToolResult } from '@shellicar/claude-sdk';
 import { logger } from './logger.js';
 import type { ImageAttachment } from './model/CommandModeState.js';
 import type { IConversationState } from './model/ConversationState.js';
@@ -14,10 +14,9 @@ export type UserInput = {
   /** True for an empty submit that resumes an interrupted turn (the conversation
    * already ends on an unanswered user message). No new user message is sent. */
   resume?: boolean;
-  /** Present when this input came from an accepted wire `say`: the queryId already returned in the
-   *  `accepted` reply, and the sender to echo as `from`. Absent for keyboard input. */
+  /** Present when this input came from an accepted wire `say`, whose acceptance already opened the
+   *  query. Absent for keyboard input, which opens its own. */
   queryId?: string;
-  from?: Sender;
 };
 
 export type RunAgentInput = {
@@ -25,9 +24,6 @@ export type RunAgentInput = {
   /** null on resume: nothing new to send; QueryRunner re-issues the existing
    * trailing user message. */
   message: Anthropic.Beta.Messages.BetaMessageParam | null;
-  /** Carried through from an accepted wire `say` so the committed user message gets that queryId/from. */
-  queryId?: string;
-  from?: Sender;
 };
 
 /**
@@ -41,7 +37,7 @@ export type RunAgentInput = {
  */
 export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
   if (userInput.resume) {
-    return { displayText: '', message: null, queryId: userInput.queryId, from: userInput.from };
+    return { displayText: '', message: null };
   }
   const contentBlocks: (BetaImageBlockParam | BetaTextBlockParam)[] = [];
   let displayText = userInput.text;
@@ -67,7 +63,7 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
     displayText = displayText ? `${displayText}\n${imgSummary}` : imgSummary;
   }
 
-  return { displayText, message: { role: 'user', content: contentBlocks }, queryId: userInput.queryId, from: userInput.from };
+  return { displayText, message: { role: 'user', content: contentBlocks } };
 }
 
 export type RunAgentStores = {
@@ -115,8 +111,6 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
       reminders: reminders.length > 0 ? reminders : undefined,
       transformToolResult,
       abortController,
-      queryId: input.queryId,
-      from: input.from,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

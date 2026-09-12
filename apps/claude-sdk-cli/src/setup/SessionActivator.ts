@@ -1,5 +1,7 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di';
+import { IConversationAdopter } from '../conv/ConvCommitter.js';
+import { IAuditTip } from '../conversations/auditTip.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { StatusState } from '../model/StatusState.js';
@@ -42,6 +44,8 @@ export class SessionActivator extends ISessionActivator {
   @dependsOn(ISystemIdentity) private readonly systemIdentity!: ISystemIdentity;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
+  @dependsOn(IAuditTip) private readonly auditTip!: IAuditTip;
+  @dependsOn(IConversationAdopter) private readonly adopter!: IConversationAdopter;
 
   public async activate(args: SessionActivationArgs): Promise<void> {
     const { resumeId, initialFilePaths, initialPrompt, noResume, identityPath, sessionName } = args;
@@ -53,6 +57,10 @@ export class SessionActivator extends ISessionActivator {
     } else {
       await this.session.load();
     }
+
+    // Before the bus binds `requests.say`: a premise landing without a tip is judged against nothing,
+    // and `{ tip: null }` against a conversation that has messages would be accepted.
+    this.adopter.adopt(await this.auditTip.read(this.session.id));
 
     if (identityPath != null) {
       const exists = await this.fs.exists(identityPath);

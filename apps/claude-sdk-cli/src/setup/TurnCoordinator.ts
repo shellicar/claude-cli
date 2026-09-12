@@ -2,8 +2,10 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IDurableConfigProvider, QueryRunner } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
-import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
+import { IMessageCommitter, IQueryCloser } from '../conv/ConvCommitter.js';
 import { IConvServicer } from '../conv/ConvServicer.js';
+import { IQueryScope } from '../conv/QueryScope.js';
+import { ICurrentTurnId } from '../conv/TurnScope.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -71,7 +73,10 @@ export class TurnCoordinator extends ITurnCoordinator {
   @dependsOn(TerminalRenderer) private readonly renderer!: TerminalRenderer;
   @dependsOn(ClaudeMdLoader) private readonly claudeMdLoader!: ClaudeMdLoader;
   @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
-  @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
+  @dependsOn(IMessageCommitter) private readonly commit!: IMessageCommitter;
+  @dependsOn(ICurrentTurnId) private readonly turn!: ICurrentTurnId;
+  @dependsOn(IQueryCloser) private readonly queryCloser!: IQueryCloser;
+  @dependsOn(IQueryScope) private readonly queryScope!: IQueryScope;
   @dependsOn(ISdkEventBridge) private readonly sdkEventBridge!: ISdkEventBridge;
   #currentAbortController: AbortController | null = null;
   #turnInProgress = false;
@@ -109,6 +114,11 @@ export class TurnCoordinator extends ITurnCoordinator {
     // A turn is live: a concurrent wire `say` against the tip is rejected until it ends (cancel frees it).
     this.convServicer.setBusy(true);
     try {
+      // A wire say opened its query when it was accepted, and its id already went back in the reply.
+      // Locally-typed input has no acceptance step, so its query opens here.
+      if (userInput.queryId === undefined) {
+        this.queryScope.begin({ kind: 'human' });
+      }
       const claudeMdContent = this.configLoader.config.claudeMd.enabled ? await this.claudeMdLoader.getContent(this.configLoader.config.claudeMd.sources) : null;
       if (this.configFactory.needsSystemPromptResolve(this.session.id)) {
         await this.configFactory.resolveSystemPromptsFor(this.session.id);
@@ -148,10 +158,12 @@ export class TurnCoordinator extends ITurnCoordinator {
 
       this.statusState.setModel(this.configFactory.getEffectiveModel(), this.overrides.model != null);
       await this.session.saveConversation();
-      this.convChanges.flush(this.session.id);
+      // A query that ends without another round leaves its last row unannounced: the tool_results of a
+      // cancelled tool batch, or the message of a query cancelled before its reply.
+      this.commit.announceTip(this.session.id, this.queryScope.queryId ?? '', this.turn.turnId ?? '');
       const pendingQueryClose = this.sdkEventBridge.takePendingQueryClose();
       if (pendingQueryClose != null) {
-        this.convChanges.closeQuery(this.session.id, pendingQueryClose.queryId, pendingQueryClose.reason);
+        this.queryCloser.closeQuery(this.session.id, pendingQueryClose.queryId, pendingQueryClose.reason);
       }
     } catch (err) {
       logger.error('runTurn failed', err);

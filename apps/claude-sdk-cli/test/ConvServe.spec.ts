@@ -3,8 +3,10 @@ import { Conversation, IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { IBus } from '../src/bus/IBus.js';
+import { IPublishedTip } from '../src/conv/ConvCommitter.js';
 import { ConvServe, IConvServe } from '../src/conv/ConvServe.js';
 import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
+import { IQueryScope, QueryScope } from '../src/conv/QueryScope.js';
 import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';
 import { logger } from '../src/logger.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
@@ -30,6 +32,11 @@ function buildConvServe(bus: CapturingBus): IConvServe {
     .register(ILogger)
     .using(() => logger)
     .asSelf();
+  services
+    .register(IPublishedTip)
+    .using(() => ({ tip: null }) as IPublishedTip)
+    .asSelf();
+  services.register(QueryScope).as(IQueryScope);
   services.register(ConvServicer).as(IConvServicer);
   services.register(ConvServe).as(IConvServe);
   return services.buildProvider().resolve(IConvServe);

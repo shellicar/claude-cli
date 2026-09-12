@@ -178,3 +178,8 @@
 {"description":"New http.allowH2 setting, off by default, so API requests negotiate HTTP/1.1","category":"added"}
 {"description":"An error written to the log keeps its name, message, stack and cause instead of rendering as an empty object","category":"fixed"}
 {"description":"Each connection logs the HTTP protocol it negotiated","category":"added"}
+{"description":"A query cancelled or aborted mid-round no longer lends its ids to the next one. Its ids lived on the message rows, and because consecutive user messages merge into one row, the next thing you typed inherited the dead query's query and turn ids and was recorded under them","category":"fixed"}
+{"description":"The audit file and the conversation bus now record a message under the same id. The audit stored an assistant message under the API's response id while the bus announced it under a separately minted one, so a single message read as two and the published id existed in no durable record","category":"fixed"}
+{"description":"Resuming a conversation no longer republishes its entire history. The publisher tracked how many messages it had sent as a count that survived a restart or a conversation switch, so the first message of a resumed session re-emitted every message before it","category":"fixed"}
+{"description":"A tool_result message is announced without a sender. It is the mechanical delivery of a tool's output, so naming the agent as having sent it invented a speaker for something nobody said","category":"fixed"}
+{"description":"The conversation file holds messages and nothing else. The ids were being written beside each message as an additive sidecar; they belong to the audit file, which is the durable per-message record","category":"changed"}

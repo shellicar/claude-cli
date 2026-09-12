@@ -7,14 +7,13 @@ import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider'
 import { dependsOn } from '@shellicar/core-di';
 import { IStreamProcessor, ITurnRunner, IWakeLock } from '../public/interfaces';
 import type { ContentBlock, DurableConfig, SystemReminder, TurnInput } from '../public/types';
-import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../public/types';
+import { AccountLimitListener, IRequestClockListener, IRequestMessageListener, StreamInterruptListener } from '../public/types';
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
 import { HEAL_REASON_UNKNOWN, type IConversation } from './Conversation';
 import { buildReminderBlocks, ensureClaudeMdReminders } from './claudeMdReminders';
 import { formatClockStamp, isClockStampBlock } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
 import { IMessageStreamer } from './MessageStreamer';
-import { assistantIdentity } from './messageIdentity';
 import { buildRequestParams, isSystemReminderBlock, type RequestBuilderOptions } from './RequestBuilder';
 import type { MessageStreamResult } from './types';
 
@@ -63,6 +62,7 @@ export class TurnRunner extends ITurnRunner {
   @dependsOn(IWakeLock) private readonly wakeLock!: IWakeLock;
   @dependsOn(StreamInterruptListener) private readonly interruption!: StreamInterruptListener;
   @dependsOn(IRequestClockListener) private readonly requestClock!: IRequestClockListener;
+  @dependsOn(IRequestMessageListener) private readonly requestMessage!: IRequestMessageListener;
 
   public async run(conversation: IConversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
@@ -120,17 +120,6 @@ export class TurnRunner extends ITurnRunner {
 
     const messages = conversation.cloneForRequest(compactEnabled);
 
-    // The request delta is the conversation tip: the trailing user-role message
-    // that triggered this API call (the typed prompt on turn 1, the tool_result on
-    // a tool-loop turn). Read before the assistant is pushed below, so the audit
-    // lands the user/assistant pair together at final_message. cloneForRequest
-    // clones a mutable copy; the stored items are untouched, so this is the
-    // pristine stored user message.
-    const requestDelta = conversation.items.at(-1)?.msg;
-    // The tip's identity (the round's messageId/turnId/queryId), read off the same item as the delta.
-    // It rides final_message to the CLI writer, which stamps the audit pair and the history index with it.
-    const requestIdentity = conversation.items.at(-1)?.identity;
-
     // Keep the standing reminders present in every request, including after a
     // compaction has trimmed off the first user message that originally carried
     // them. Idempotent, so the pre-compaction request (where they are already the
@@ -169,6 +158,15 @@ export class TurnRunner extends ITurnRunner {
     let firstAccountLimitAt: Instant | null = null;
     let transientAttempt = 0;
     let streamInterruptAttempt = 0;
+    // The trailing user-role message this request carries, read after every shaping above (merge,
+    // clock stamp, heal) so it is exactly what the model is about to receive. Announced here, once,
+    // above the retry loop: a reconnect or a backed-off resend is the transport recovering from its
+    // own failure, and it carries the same message.
+    const requestDelta = conversation.items.at(-1)?.msg;
+    if (requestDelta !== undefined) {
+      this.requestMessage.sending(requestDelta);
+    }
+
     // Held across the whole retry loop so the machine stays awake during the
     // request and any backoff waits; released the instant the turn settles, so
     // local work between turns can still let the machine sleep. Always a handle
@@ -179,7 +177,7 @@ export class TurnRunner extends ITurnRunner {
         this.requestClock.requestStarted();
         try {
           const stream = this.streamer.stream(body, requestOptions);
-          result = await this.processor.process(stream, requestDelta, requestIdentity);
+          result = await this.processor.process(stream);
           this.requestClock.requestSettled(true);
           break;
         } catch (err) {
@@ -255,10 +253,7 @@ export class TurnRunner extends ITurnRunner {
 
     const assistantContent = result.blocks.map(mapBlock);
     if (assistantContent.length > 0) {
-      // The assistant inherits the round's turnId/queryId off the tip (the user-role message that opened
-      // this round) and mints its own messageId. No tip identity (a legacy conversation) leaves it unstamped.
-      const round = conversation.items.at(-1)?.identity;
-      conversation.push({ role: 'assistant', content: assistantContent }, round ? { identity: assistantIdentity(round) } : undefined);
+      conversation.push({ role: 'assistant', content: assistantContent });
     }
 
     return result;

@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Conversation retains full message history across compaction; adds internal `cloneForRequest()` that returns a deep-cloned post-compaction slice for API requests
 - Depend on @shellicar/core-di instead of @shellicar/core-di-lite
 - Extract `AnthropicClient` from `AnthropicAgent`: auth, token refresh, and HTTP transport now live in a dedicated private class. `AnthropicAgent` becomes a thin composer that holds a client and a conversation. The previous `AnthropicMessageStreamer` wrapper is removed; `AnthropicClient` extends `IMessageStreamer` directly.
+- final_message and IStreamProcessor.process no longer carry the request delta. A consumer records the user half of a round when that message is committed rather than when the round completes
 - Model per-message reminders with a SystemReminder type (text, persisted, position): PerQueryInput.reminders and TurnInput.ephemeralReminders replace the systemReminder string, so a persisted reminder is stored in history and leads the user message (cached) while an ephemeral one rides the request clone each turn and trails it (uncached)
 - Omit empty `context_management` from request body instead of sending empty edits array
 - Refactor stream processor to use SDK native event emitter
@@ -65,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Remove deprecated InterleavedThinking beta header
+- The SDK no longer mints or stores conversation ids. MessageIdentity is removed, Conversation.push and setHistory take messages only, and PerQueryInput drops queryId and from. A consumer that needs a query, turn or message id now owns it, which is where the decision about reusing one belongs
 
 ### Fixed
 

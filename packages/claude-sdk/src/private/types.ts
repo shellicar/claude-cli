@@ -1,6 +1,5 @@
-import type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { ContentBlock, SdkMessageUsage } from '../public/types';
-import type { MessageIdentity } from './Conversation';
 
 export type ApprovalResponse = {
   approved: boolean;
@@ -53,10 +52,7 @@ export type MessageStreamEvents = {
   // message_start, output at message_end); this fires once per frame carrying that frame's own share,
   // delta-tracked so the shares sum to the turn total. Consumers keep accumulating unchanged.
   message_usage: [usage: Omit<SdkMessageUsage, 'type'>];
-  // The assembled raw message at stream end, plus the request delta (the trailing
-  // user-role message that triggered this API call) and its identity (the round's
-  // messageId/turnId/queryId). Consumed by the CLI writer, which lands the two as an
-  // alternating user/assistant pair in the audit and projects both into the history
-  // index, stamped with the ids. Identity is absent on a legacy round with no id model.
-  final_message: [msg: BetaMessage, request?: BetaMessageParam, identity?: MessageIdentity];
+  // The assembled raw message at stream end: what came back. Recorded by the CLI writer the
+  // moment it lands, because model output cannot be regenerated.
+  final_message: [msg: BetaMessage];
 };

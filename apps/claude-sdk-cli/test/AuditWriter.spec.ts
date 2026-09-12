@@ -2,17 +2,21 @@ import type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
-import type { MessageIdentity } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
-// AuditWriter now derives its dir as `${fs.homedir()}/.claude/audit`; with the
-// fake homedir '/home/user' that is this path.
+// AuditWriter derives its dir as `${fs.homedir()}/.claude/audit`; with the fake homedir
+// '/home/user' that is this path.
 const AUDIT_DIR = '/home/user/.claude/audit';
 
-// Captures every message projected into the index, so a test can assert on the write-through pair.
+const QUERY_ID = 'query-1';
+const TURN_ID = 'turn-1';
+const USER_ID = 'umsg-1';
+const ASSISTANT_ID = 'amsg-1';
+
+// Captures every message projected into the index, so a test can assert on the write-through.
 class RecordingHistoryWriter extends IHistoryWriter {
   public readonly inserted: HistoryMessage[] = [];
   public insert(message: HistoryMessage): void {
@@ -43,11 +47,6 @@ class ThrowingHistoryWriter extends IHistoryWriter {
   }
 }
 
-// The round's identity as QueryRunner mints it: the user's own messageId, the pair's turnId, the query's queryId.
-function makeIdentity(): MessageIdentity {
-  return { messageId: 'umsg-1', turnId: 'turn-1', queryId: 'query-1', from: { kind: 'human' } };
-}
-
 function makeMessage(text = 'Hello'): BetaMessage {
   return {
     id: 'msg_01',
@@ -69,19 +68,20 @@ function makeMessage(text = 'Hello'): BetaMessage {
   } as BetaMessage;
 }
 
-function makeUserDelta(text = 'do the thing'): BetaMessageParam {
+function makeUserMessage(text = 'do the thing'): BetaMessageParam {
   return { role: 'user', content: [{ type: 'text', text }] };
 }
 
-// ---------------------------------------------------------------------------
-// write
-// ---------------------------------------------------------------------------
+async function linesOf(fs: MemoryFileSystem, conversationId: string): Promise<string[]> {
+  // The append is fire-and-forget inside the writer, so let it land before reading.
+  await new Promise((r) => setTimeout(r, 10));
+  return (await fs.readFile(`${AUDIT_DIR}/${conversationId}.jsonl`)).trimEnd().split('\n');
+}
 
-describe('AuditWriter — write', () => {
+describe('AuditWriter — the audit file', () => {
   it('creates a file at <auditDir>/<id>.jsonl', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-123', undefined, makeMessage());
+    buildAuditWriter(fs).writeAssistant('conv-123', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
 
     await new Promise((r) => setTimeout(r, 10));
 
@@ -90,271 +90,202 @@ describe('AuditWriter — write', () => {
     expect(actual).toBe(expected);
   });
 
-  it('appends one line per call', async () => {
+  it('appends one line per message', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
     const writer = buildAuditWriter(fs);
-    writer.write('conv-1', undefined, makeMessage('first'));
-    writer.write('conv-1', undefined, makeMessage('second'));
+    writer.writeUser('conv-1', makeUserMessage(), USER_ID, QUERY_ID, TURN_ID);
+    writer.writeAssistant('conv-1', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
 
-    await new Promise((r) => setTimeout(r, 10));
-
-    const content = await fs.readFile(`${AUDIT_DIR}/conv-1.jsonl`);
     const expected = 2;
-    const actual = content.trimEnd().split('\n').length;
+    const actual = (await linesOf(fs, 'conv-1')).length;
     expect(actual).toBe(expected);
   });
 
   it('writes each line as valid JSON', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-2', undefined, makeMessage());
+    buildAuditWriter(fs).writeAssistant('conv-2', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
 
-    await new Promise((r) => setTimeout(r, 10));
-
-    const content = await fs.readFile(`${AUDIT_DIR}/conv-2.jsonl`);
-    const line = content.trimEnd();
-    const expected = true;
-    const actual = (() => {
-      try {
-        JSON.parse(line);
-        return true;
-      } catch {
-        return false;
-      }
-    })();
-    expect(actual).toBe(expected);
+    const [line] = await linesOf(fs, 'conv-2');
+    const act = () => JSON.parse(line as string);
+    expect(act).not.toThrow();
   });
 
-  it('accumulates lines in the same file for the same ID', async () => {
+  it('accumulates lines in the same file for the same conversation', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
     const writer = buildAuditWriter(fs);
-    writer.write('conv-same', undefined, makeMessage('one'));
-    writer.write('conv-same', undefined, makeMessage('two'));
-    writer.write('conv-same', undefined, makeMessage('three'));
+    writer.writeAssistant('conv-same', makeMessage('one'), 'a-1', QUERY_ID, TURN_ID);
+    writer.writeAssistant('conv-same', makeMessage('two'), 'a-2', QUERY_ID, TURN_ID);
+    writer.writeAssistant('conv-same', makeMessage('three'), 'a-3', QUERY_ID, TURN_ID);
 
-    await new Promise((r) => setTimeout(r, 10));
-
-    const content = await fs.readFile(`${AUDIT_DIR}/conv-same.jsonl`);
     const expected = 3;
-    const actual = content.trimEnd().split('\n').length;
+    const actual = (await linesOf(fs, 'conv-same')).length;
     expect(actual).toBe(expected);
   });
 
-  it('creates a separate file for each distinct ID', async () => {
+  it('creates a separate file for each conversation', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
     const writer = buildAuditWriter(fs);
-    writer.write('conv-a', undefined, makeMessage('alpha'));
-    writer.write('conv-b', undefined, makeMessage('beta'));
+    writer.writeAssistant('conv-a', makeMessage('alpha'), ASSISTANT_ID, QUERY_ID, TURN_ID);
+    writer.writeAssistant('conv-b', makeMessage('beta'), ASSISTANT_ID, QUERY_ID, TURN_ID);
 
     await new Promise((r) => setTimeout(r, 10));
 
-    const existsA = await fs.exists(`${AUDIT_DIR}/conv-a.jsonl`);
-    const existsB = await fs.exists(`${AUDIT_DIR}/conv-b.jsonl`);
     const expected = true;
-    const actual = existsA && existsB;
+    const actual = (await fs.exists(`${AUDIT_DIR}/conv-a.jsonl`)) && (await fs.exists(`${AUDIT_DIR}/conv-b.jsonl`));
     expect(actual).toBe(expected);
   });
 });
 
-// ---------------------------------------------------------------------------
-// stored cost + breakdown
-// ---------------------------------------------------------------------------
-// makeMessage has cache_creation_input_tokens: null and no cache_creation object;
-// model 'claude-sonnet-4-20250514' strips to 'claude-sonnet-4' (input $3/M, output
-// $15/M). Reconstruction must yield { fiveMinute: 0, oneHour: 0 }.
-
-describe('AuditWriter — stored cost and breakdown', () => {
-  it('stores a numeric costUsd on the written line', async () => {
+describe('AuditWriter — writeUser', () => {
+  it('writes a user-role line', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-cost', undefined, makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-    const line = JSON.parse((await fs.readFile(`${AUDIT_DIR}/conv-cost.jsonl`)).trimEnd().split('\n').at(-1) as string);
+    buildAuditWriter(fs).writeUser('conv-u', makeUserMessage(), USER_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-u');
+    const expected = 'user';
+    const actual = (JSON.parse(line as string) as { role: string }).role;
+    expect(actual).toBe(expected);
+  });
+
+  it('stamps the line with the message, turn and query ids', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    buildAuditWriter(fs).writeUser('conv-uids', makeUserMessage(), USER_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-uids');
+    const parsed = JSON.parse(line as string) as { id: string; turnId: string; queryId: string };
+    const expected = { id: USER_ID, turnId: TURN_ID, queryId: QUERY_ID };
+    const actual = { id: parsed.id, turnId: parsed.turnId, queryId: parsed.queryId };
+    expect(actual).toEqual(expected);
+  });
+
+  it('carries the message content', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const message = makeUserMessage('specific text');
+    buildAuditWriter(fs).writeUser('conv-ucontent', message, USER_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-ucontent');
+    const expected = message.content;
+    const actual = (JSON.parse(line as string) as { content: unknown }).content;
+    expect(actual).toEqual(expected);
+  });
+
+  // The reason the write is per-message: a query cancelled during its tools commits a tool_result
+  // message and then ends, so no assistant response ever follows it.
+  it('records a user message that no assistant response follows', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    buildAuditWriter(fs).writeUser('conv-cancelled', makeUserMessage('tool results'), USER_ID, QUERY_ID, TURN_ID);
+
+    const expected = 1;
+    const actual = (await linesOf(fs, 'conv-cancelled')).length;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('AuditWriter — writeAssistant', () => {
+  it('writes an assistant-role line', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    buildAuditWriter(fs).writeAssistant('conv-a', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-a');
+    const expected = 'assistant';
+    const actual = (JSON.parse(line as string) as { role: string }).role;
+    expect(actual).toBe(expected);
+  });
+
+  it('identifies the message by its minted id, not the API response id', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    buildAuditWriter(fs).writeAssistant('conv-aid', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-aid');
+    const expected = ASSISTANT_ID;
+    const actual = (JSON.parse(line as string) as { id: string }).id;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps the API response id alongside it', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    buildAuditWriter(fs).writeAssistant('conv-api', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-api');
+    const expected = 'msg_01';
+    const actual = (JSON.parse(line as string) as { apiMessageId: string }).apiMessageId;
+    expect(actual).toBe(expected);
+  });
+
+  it('stamps the line with the turn and query ids', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    buildAuditWriter(fs).writeAssistant('conv-aids', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-aids');
+    const parsed = JSON.parse(line as string) as { turnId: string; queryId: string };
+    const expected = { turnId: TURN_ID, queryId: QUERY_ID };
+    const actual = { turnId: parsed.turnId, queryId: parsed.queryId };
+    expect(actual).toEqual(expected);
+  });
+});
+
+// makeMessage has cache_creation_input_tokens: null and no cache_creation object; model
+// 'claude-sonnet-4-20250514' strips to 'claude-sonnet-4' (input $3/M, output $15/M).
+// Reconstruction must yield { fiveMinute: 0, oneHour: 0 }.
+describe('AuditWriter — stored cost and breakdown', () => {
+  it('stores a numeric costUsd on the assistant line', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    buildAuditWriter(fs).writeAssistant('conv-cost', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-cost');
     const expected = true;
-    const actual = typeof line.costUsd === 'number';
+    const actual = typeof (JSON.parse(line as string) as { costUsd: unknown }).costUsd === 'number';
     expect(actual).toBe(expected);
   });
 
   it('stores the reconstructed cache-creation breakdown', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-split', undefined, makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-    const line = JSON.parse((await fs.readFile(`${AUDIT_DIR}/conv-split.jsonl`)).trimEnd().split('\n').at(-1) as string);
+    buildAuditWriter(fs).writeAssistant('conv-split', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-split');
     const expected = { fiveMinute: 0, oneHour: 0 };
-    const actual = line.cacheCreation;
+    const actual = (JSON.parse(line as string) as { cacheCreation: unknown }).cacheCreation;
     expect(actual).toEqual(expected);
   });
 
   it('tolerates a message with null cache_creation, pricing input+output only', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-null', undefined, makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-    const line = JSON.parse((await fs.readFile(`${AUDIT_DIR}/conv-null.jsonl`)).trimEnd().split('\n').at(-1) as string);
+    buildAuditWriter(fs).writeAssistant('conv-null', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
+
+    const [line] = await linesOf(fs, 'conv-null');
     const expected = (10 * 3 + 20 * 15) / 1_000_000; // sonnet-4: input $3/M, output $15/M
-    const actual = line.costUsd;
+    const actual = (JSON.parse(line as string) as { costUsd: number }).costUsd;
     expect(actual).toBeCloseTo(expected);
   });
 });
 
-// ---------------------------------------------------------------------------
-// turn-pair write
-// ---------------------------------------------------------------------------
-
-describe('AuditWriter — turn-pair write', () => {
-  it('writes two lines for one call', async () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-pair', makeUserDelta(), makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-
-    const content = await fs.readFile(`${AUDIT_DIR}/conv-pair.jsonl`);
-    const expected = 2;
-    const actual = content.trimEnd().split('\n').length;
-    expect(actual).toBe(expected);
-  });
-
-  it('writes the user delta as the first line', async () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-user', makeUserDelta(), makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-
-    const [first] = (await fs.readFile(`${AUDIT_DIR}/conv-user.jsonl`)).trimEnd().split('\n');
-    const expected = 'user';
-    const actual = (JSON.parse(first) as { role: string }).role;
-    expect(actual).toBe(expected);
-  });
-
-  it('writes the assistant response as the second line', async () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-asst', makeUserDelta(), makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-
-    const [, second] = (await fs.readFile(`${AUDIT_DIR}/conv-asst.jsonl`)).trimEnd().split('\n');
-    const expected = 'assistant';
-    const actual = (JSON.parse(second) as { role: string }).role;
-    expect(actual).toBe(expected);
-  });
-
-  it('stamps both lines with one timestamp', async () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-ts', makeUserDelta(), makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-
-    const [first, second] = (await fs.readFile(`${AUDIT_DIR}/conv-ts.jsonl`)).trimEnd().split('\n');
-    const expected = (JSON.parse(second) as { timestamp: string }).timestamp;
-    const actual = (JSON.parse(first) as { timestamp: string }).timestamp;
-    expect(actual).toBe(expected);
-  });
-
-  it('carries the delta content on the user line', async () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    const delta = makeUserDelta('specific text');
-    writer.write('conv-content', delta, makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-
-    const [first] = (await fs.readFile(`${AUDIT_DIR}/conv-content.jsonl`)).trimEnd().split('\n');
-    const expected = delta.content;
-    const actual = (JSON.parse(first) as { content: unknown }).content;
-    expect(actual).toEqual(expected);
-  });
-
-  it('writes only the assistant line when the delta is undefined', async () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-none', undefined, makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-
-    const content = await fs.readFile(`${AUDIT_DIR}/conv-none.jsonl`);
-    const expected = 1;
-    const actual = content.trimEnd().split('\n').length;
-    expect(actual).toBe(expected);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// v2 ids on the audit lines (write-model §3)
-// ---------------------------------------------------------------------------
-
-describe('AuditWriter — v2 ids on the audit lines', () => {
-  it('stamps the user line with the identity ids', async () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-uv2', makeUserDelta(), makeMessage(), makeIdentity());
-    await new Promise((r) => setTimeout(r, 10));
-
-    const [first] = (await fs.readFile(`${AUDIT_DIR}/conv-uv2.jsonl`)).trimEnd().split('\n');
-    const line = JSON.parse(first) as { id: string; turnId: string; queryId: string };
-    const expected = { id: 'umsg-1', turnId: 'turn-1', queryId: 'query-1' };
-    const actual = { id: line.id, turnId: line.turnId, queryId: line.queryId };
-    expect(actual).toEqual(expected);
-  });
-
-  it('stamps the assistant line with the turn ids, keeping its API id', async () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-av2', makeUserDelta(), makeMessage(), makeIdentity());
-    await new Promise((r) => setTimeout(r, 10));
-
-    const [, second] = (await fs.readFile(`${AUDIT_DIR}/conv-av2.jsonl`)).trimEnd().split('\n');
-    const line = JSON.parse(second) as { id: string; turnId: string; queryId: string };
-    const expected = { id: 'msg_01', turnId: 'turn-1', queryId: 'query-1' };
-    const actual = { id: line.id, turnId: line.turnId, queryId: line.queryId };
-    expect(actual).toEqual(expected);
-  });
-
-  it('omits the ids on the user line for a legacy round with no identity', async () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = buildAuditWriter(fs);
-    writer.write('conv-legacy', makeUserDelta(), makeMessage());
-    await new Promise((r) => setTimeout(r, 10));
-
-    const [first] = (await fs.readFile(`${AUDIT_DIR}/conv-legacy.jsonl`)).trimEnd().split('\n');
-    const expected = false;
-    const actual = 'turnId' in (JSON.parse(first) as object);
-    expect(actual).toBe(expected);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// index projection (write-model §1: write-through keeps the live index current)
-// ---------------------------------------------------------------------------
-
 describe('AuditWriter — index projection', () => {
-  it('projects the user message stamped with the conversationId and identity ids', () => {
+  it('projects the user message stamped with the conversation and round ids', () => {
     const fs = new MemoryFileSystem({}, '/home/user');
     const index = new RecordingHistoryWriter();
-    const writer = buildAuditWriter(fs, index);
-    writer.write('conv-proj', makeUserDelta(), makeMessage(), makeIdentity());
+    buildAuditWriter(fs, index).writeUser('conv-proj', makeUserMessage(), USER_ID, QUERY_ID, TURN_ID);
 
     const user = index.inserted.find((m) => m.role === 'user');
-    const expected = { id: 'umsg-1', conversationId: 'conv-proj', turnId: 'turn-1', queryId: 'query-1' };
+    const expected = { id: USER_ID, conversationId: 'conv-proj', turnId: TURN_ID, queryId: QUERY_ID };
     const actual = { id: user?.id, conversationId: user?.conversationId, turnId: user?.turnId, queryId: user?.queryId };
     expect(actual).toEqual(expected);
   });
 
-  it('projects the assistant message under its API message id', () => {
+  it('projects the assistant message under the same id the audit line carries', () => {
     const fs = new MemoryFileSystem({}, '/home/user');
     const index = new RecordingHistoryWriter();
-    const writer = buildAuditWriter(fs, index);
-    writer.write('conv-proj', makeUserDelta(), makeMessage(), makeIdentity());
+    buildAuditWriter(fs, index).writeAssistant('conv-proj', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
 
     const assistant = index.inserted.find((m) => m.role === 'assistant');
-    const expected = 'msg_01';
+    const expected = ASSISTANT_ID;
     const actual = assistant?.id;
     expect(actual).toBe(expected);
   });
 
-  it('indexes the user delta text as a searchable block', () => {
+  it('indexes the user text as a searchable block', () => {
     const fs = new MemoryFileSystem({}, '/home/user');
     const index = new RecordingHistoryWriter();
-    const writer = buildAuditWriter(fs, index);
-    writer.write('conv-blocks', makeUserDelta('find me later'), makeMessage(), makeIdentity());
+    buildAuditWriter(fs, index).writeUser('conv-blocks', makeUserMessage('find me later'), USER_ID, QUERY_ID, TURN_ID);
 
     const user = index.inserted.find((m) => m.role === 'user');
     const expected = [{ seq: 0, type: 'text', text: 'find me later' }];
@@ -362,39 +293,26 @@ describe('AuditWriter — index projection', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('projects both messages of the pair', () => {
+  it('projects one message per write', () => {
     const fs = new MemoryFileSystem({}, '/home/user');
     const index = new RecordingHistoryWriter();
     const writer = buildAuditWriter(fs, index);
-    writer.write('conv-both', makeUserDelta(), makeMessage(), makeIdentity());
+    writer.writeUser('conv-both', makeUserMessage(), USER_ID, QUERY_ID, TURN_ID);
+    writer.writeAssistant('conv-both', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
 
     const expected = 2;
     const actual = index.inserted.length;
     expect(actual).toBe(expected);
   });
-
-  it('does not index a legacy round with no identity', () => {
-    const fs = new MemoryFileSystem({}, '/home/user');
-    const index = new RecordingHistoryWriter();
-    const writer = buildAuditWriter(fs, index);
-    writer.write('conv-noindex', makeUserDelta(), makeMessage());
-
-    const expected = 0;
-    const actual = index.inserted.length;
-    expect(actual).toBe(expected);
-  });
 });
 
-// ---------------------------------------------------------------------------
-// best-effort index projection (write-model §1: a store failure must never fault the turn)
-// ---------------------------------------------------------------------------
-
+// write-model §1: a store failure must never fault the turn.
 describe('AuditWriter — best-effort index projection', () => {
   it('swallows an index insert failure so the turn is not faulted', () => {
     const fs = new MemoryFileSystem({}, '/home/user');
     const writer = buildAuditWriter(fs, new ThrowingHistoryWriter());
 
-    const act = () => writer.write('conv-throw', makeUserDelta(), makeMessage(), makeIdentity());
+    const act = () => writer.writeAssistant('conv-throw', makeMessage(), ASSISTANT_ID, QUERY_ID, TURN_ID);
 
     expect(act).not.toThrow();
   });

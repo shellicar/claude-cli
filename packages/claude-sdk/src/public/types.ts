@@ -2,7 +2,6 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaBase64ImageSource, BetaBase64PDFSource, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
-import type { Sender } from '../private/Conversation';
 import type { AnthropicBeta, CacheTtl } from './enums';
 
 // 'escalate' is distinct from 'write': a write's risk is scoped by the cwd-zone matrix (default/
@@ -212,11 +211,6 @@ export type PerQueryInput = {
   reminders?: SystemReminder[];
   transformToolResult?: TransformToolResult;
   abortController: AbortController;
-  /** Present when the query was accepted from a wire `say`: the already-returned queryId and the
-   *  sender to echo as `from` on the committed user message. Absent for keyboard input, where the
-   *  queryId is minted in QueryRunner and `from` defaults to `{ kind: 'human' }`. */
-  queryId?: string;
-  from?: Sender;
 };
 
 /** Messages sent from the SDK to the consumer. */
@@ -324,6 +318,19 @@ export abstract class StreamInterruptListener {
 export abstract class IRequestClockListener {
   public abstract requestStarted(): void;
   public abstract requestSettled(kept: boolean): void;
+}
+
+/**
+ * Receives the trailing user-role message a request carries, once, immediately before the request is
+ * made. This is the message as the model will receive it: after consecutive user messages have merged,
+ * after the clock stamp, after a heal. A consumer recording what was sent writes here, before the send
+ * rather than after it, because a request that dies in flight was still sent.
+ *
+ * Called above the retry loop, not inside it. A reconnect after a dropped socket or a 429 is the
+ * transport recovering from its own failure; the message is the same message, so it is announced once.
+ */
+export abstract class IRequestMessageListener {
+  public abstract sending(msg: Anthropic.Beta.Messages.BetaMessageParam): void;
 }
 
 /** Receives the tools layer's clock edges from QueryRunner's dispatch. One

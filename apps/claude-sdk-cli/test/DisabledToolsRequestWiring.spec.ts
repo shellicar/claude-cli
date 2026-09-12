@@ -17,6 +17,7 @@ import {
   IDurableConfigProvider,
   IMessageStreamer,
   IRequestClockListener,
+  IRequestMessageListener,
   IStreamProcessor,
   IToolRegistry,
   IWakeLock,
@@ -95,6 +96,10 @@ class NoopInterruption extends StreamInterruptListener {
 class NoopRequestClock extends IRequestClockListener {
   public requestStarted(): void {}
   public requestSettled(_kept: boolean): void {}
+}
+
+class NoopRequestMessage extends IRequestMessageListener {
+  public sending(): void {}
 }
 
 function makeTool(name: string): AnyToolDefinition {
@@ -177,6 +182,7 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
   services.register(NoopWakeLock).as(IWakeLock);
   services.register(NoopInterruption).as(StreamInterruptListener);
   services.register(NoopRequestClock).as(IRequestClockListener);
+  services.register(NoopRequestMessage).as(IRequestMessageListener);
   services.register(TurnRunner).asSelf();
 
   const provider = services.buildProvider();

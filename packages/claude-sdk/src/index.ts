@@ -69,12 +69,12 @@ import type {
   TransformToolResult,
   WakeLockHandle,
 } from './public/types';
-import { AccountLimitListener, IRequestClockListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from './public/types';
+import { AccountLimitListener, IRequestClockListener, IRequestMessageListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 export type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-export type { HistoryItem, MessageIdentity, Sender } from './private/Conversation';
+export type { HistoryItem, Sender } from './private/Conversation';
 export type { ModelInfo } from './private/ModelCatalog';
 export type { SchemaResolver } from './public/pathSchema';
 export type {
@@ -150,6 +150,7 @@ export {
   IProfileEndpoint,
   IQueryRunner,
   IRequestClockListener,
+  IRequestMessageListener,
   IS_PATH,
   ISdkMessagePublisher,
   ISkillGateProvider,

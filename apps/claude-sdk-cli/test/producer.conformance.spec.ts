@@ -3,16 +3,20 @@ import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import type { MessageIdentity, SdkMessage, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
+import type { SdkMessage, SdkToolApprovalRequest, Sender } from '@shellicar/claude-sdk';
 import { Conversation, IConversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { describe, expect, it, vi } from 'vitest';
+import { AuditWriter } from '../src/AuditWriter.js';
 import { AgentPresence, IAgentPresence } from '../src/agent/AgentPresence.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
-import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { ConvCommitter, IMessageCommitter, IQueryCloser } from '../src/conv/ConvCommitter.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../src/conv/ConvTelemetryProjector.js';
+import { ICurrentQueryId } from '../src/conv/QueryScope.js';
+import { ICurrentTurnId } from '../src/conv/TurnScope.js';
 import { telemetryLeaf } from '../src/conv/telemetryLeaf.js';
 import { stamp } from '../src/conv/wire.js';
 import { logger } from '../src/logger.js';
@@ -106,11 +110,35 @@ const durableStub = {
   },
 } as IDurableConfigProvider;
 
-const identity = (messageId: string, turnId: string, from: MessageIdentity['from']): MessageIdentity => ({ messageId, turnId, queryId: 'q1', from });
+const HUMAN: Sender = { kind: 'human', userId: 'stephen' };
+
+/** The live query, fixed so the captured telemetry is comparable against the fixture. */
+class FakeCurrentQueryId extends ICurrentQueryId {
+  public get queryId(): string {
+    return 'q1';
+  }
+}
+
+/** The live turn, advanced by hand between rounds. */
+class FakeCurrentTurnId extends ICurrentTurnId {
+  #turnId = 't1';
+  public get turnId(): string {
+    return this.#turnId;
+  }
+  public advance(turnId: string): void {
+    this.#turnId = turnId;
+  }
+}
+
+/** The index is a projection the wire never sees, so this test only needs it to exist. */
+class DiscardingHistoryWriter extends IHistoryWriter {
+  public insert(): void {}
+}
 
 function runConvProducer(): Captured[] {
   const conversation = new Conversation();
   const bus = new CapturingBus();
+  const turn = new FakeCurrentTurnId();
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
@@ -135,14 +163,32 @@ function runConvProducer(): Captured[] {
     .register(Clock)
     .using(() => clock)
     .asSelf();
-  services.register(ConvChangePublisher).as(IConvChangePublisher);
+  services
+    .register(IHistoryWriter)
+    .using(() => new DiscardingHistoryWriter())
+    .asSelf();
+  services.register(AuditWriter).asSelf();
+  services
+    .register(ICurrentQueryId)
+    .using(() => new FakeCurrentQueryId())
+    .asSelf();
+  services
+    .register(ICurrentTurnId)
+    .using(() => turn)
+    .asSelf();
+  services.register(ConvCommitter).asSelf().as(IMessageCommitter);
+  services
+    .register(IQueryCloser)
+    .using([ConvCommitter], (committer) => committer)
+    .asSelf();
   services
     .register(IDurableConfigProvider)
     .using(() => durableStub)
     .asSelf();
   services.register(ConvTelemetryProjector).as(IConvTelemetryProjector);
   const provider = services.buildProvider();
-  const changes = provider.resolve(IConvChangePublisher);
+  const changes = provider.resolve(IMessageCommitter);
+  const queryCloser = provider.resolve(IQueryCloser);
   const projector = provider.resolve(IConvTelemetryProjector);
 
   const drive = (msg: SdkMessage): void => {
@@ -154,25 +200,26 @@ function runConvProducer(): Captured[] {
   };
 
   // Round 1: user message in, a tool round, assistant tool_use out.
-  conversation.push({ role: 'user', content: [{ type: 'text', text: 'read file X and summarise it' }] }, { identity: identity('m1', 't1', { kind: 'human', userId: 'stephen' }) });
-  changes.flush(CONV);
+  conversation.push({ role: 'user', content: [{ type: 'text', text: 'read file X and summarise it' }] });
+  changes.announceTip(CONV, 'q1', 't1', HUMAN);
   drive({ type: 'message_start' });
   drive({ type: 'tool_use_start', id: 'toolu_01ABC', name: 'ReadFile' });
   drive({ type: 'tool_use_input_stop', id: 'toolu_01ABC', input: { path: 'X' } });
   drive({ type: 'message_end', stopReason: 'tool_use' });
   drive({ type: 'message_usage', inputTokens: 1200, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: 80, costUsd: 0.005, contextWindow: 200_000 });
-  conversation.push({ role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_01ABC', name: 'ReadFile', input: { path: 'X' } }] }, { identity: identity('m2', 't1', { kind: 'agent' }) });
-  changes.flush(CONV);
+  conversation.push({ role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_01ABC', name: 'ReadFile', input: { path: 'X' } }] });
+  changes.announceAssistant(CONV, 'm2', 'q1', 't1');
 
   // Round 2: tool result in, closing assistant text out.
-  conversation.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_01ABC', content: 'file contents' }] }, { identity: identity('m3', 't2', { kind: 'agent' }) });
-  changes.flush(CONV);
+  turn.advance('t2');
+  conversation.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_01ABC', content: 'file contents' }] });
+  changes.announceTip(CONV, 'q1', 't2');
   drive({ type: 'message_start' });
   drive({ type: 'message_end', stopReason: 'end_turn' });
   drive({ type: 'message_usage', inputTokens: 1400, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 1200, outputTokens: 150, costUsd: 0.006, contextWindow: 200_000 });
-  conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity: identity('m4', 't2', { kind: 'agent' }) });
-  changes.flush(CONV);
-  changes.closeQuery(CONV, 'q1', 'completed');
+  conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] });
+  changes.announceAssistant(CONV, 'm4', 'q1', 't2');
+  queryCloser.closeQuery(CONV, 'q1', 'completed');
 
   return bus.published;
 }

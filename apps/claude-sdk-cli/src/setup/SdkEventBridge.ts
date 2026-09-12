@@ -4,7 +4,10 @@ import { dependsOn } from '@shellicar/core-di';
 import { AuditWriter } from '../AuditWriter.js';
 import { IBus } from '../bus/IBus.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
+import { IAssistantMessageScope } from '../conv/AssistantMessageScope.js';
 import { IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
+import { ICurrentQueryId } from '../conv/QueryScope.js';
+import { ICurrentTurnId } from '../conv/TurnScope.js';
 import { telemetryLeaf } from '../conv/telemetryLeaf.js';
 import { encode, stamp } from '../conv/wire.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -39,11 +42,16 @@ export class SdkEventBridge extends ISdkEventBridge {
   @dependsOn(IConvTelemetryProjector) private readonly convTelemetry!: IConvTelemetryProjector;
   @dependsOn(Clock) private readonly clock!: Clock;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
+  @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
+  @dependsOn(ICurrentTurnId) private readonly turn!: ICurrentTurnId;
+  @dependsOn(IAssistantMessageScope) private readonly assistantMessage!: IAssistantMessageScope;
   #pendingQueryClose: PendingQueryClose | null = null;
 
   /** Wire both directions. Call once at startup, after every dependency above is live. */
   public wire(): void {
-    this.processor.on('final_message', (msg, request, identity) => this.auditWriter.write(this.session.id, request, msg, identity));
+    // What came back, recorded the moment it lands: model output cannot be regenerated, so it is not
+    // left waiting on a disk write. The publish follows on `turn_content` under the same id.
+    this.processor.on('final_message', (msg) => this.auditWriter.writeAssistant(this.session.id, msg, this.assistantMessage.begin(), this.query.queryId ?? '', this.turn.turnId ?? ''));
     this.processor.on('message_start', () => this.sdkChannel.send({ type: 'message_start' }));
     this.processor.on('message_usage', (usage) => this.sdkChannel.send({ type: 'message_usage', ...usage }));
     this.processor.on('message_text', (text) => this.sdkChannel.send({ type: 'message_text', text }));

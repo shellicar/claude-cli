@@ -62,6 +62,6 @@
       }
     }
   },
-  "required": ["ts", "id", "queryId", "turnId", "role", "from", "content"],
+  "required": ["ts", "id", "queryId", "turnId", "role", "content"],
   "additionalProperties": {}
 }

@@ -16,7 +16,7 @@ import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { MessageStreamResult } from '../src/private/types.js';
 import { IStreamProcessor, IWakeLock } from '../src/public/interfaces.js';
 import type { DurableConfig, WakeLockHandle } from '../src/public/types.js';
-import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../src/public/types.js';
+import { AccountLimitListener, IRequestClockListener, IRequestMessageListener, StreamInterruptListener } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -118,6 +118,14 @@ class NoopRequestClock extends IRequestClockListener {
   public requestSettled(_kept: boolean): void {}
 }
 
+/** Records each announcement, so a test can assert one per request rather than one per attempt. */
+class RecordingRequestMessage extends IRequestMessageListener {
+  public readonly sent: Anthropic.Beta.Messages.BetaMessageParam[] = [];
+  public sending(msg: Anthropic.Beta.Messages.BetaMessageParam): void {
+    this.sent.push(msg);
+  }
+}
+
 class SpyInterruption extends StreamInterruptListener {
   public count = 0;
 
@@ -183,7 +191,18 @@ class NoopLogger extends ILogger {
  * sleep/random values are wrapped in their provider abstractions, and the clock
  * is registered directly as js-joda's `Clock`.
  */
-function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, listener?: AccountLimitListener, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock?: Clock, wakeLock?: IWakeLock, interruption?: StreamInterruptListener): TurnRunner {
+function buildTurnRunner(
+  streamer: IMessageStreamer,
+  processor: IStreamProcessor,
+  logger?: ILogger,
+  listener?: AccountLimitListener,
+  sleep?: (ms: number, signal: AbortSignal) => Promise<void>,
+  random?: () => number,
+  clock?: Clock,
+  wakeLock?: IWakeLock,
+  interruption?: StreamInterruptListener,
+  requestMessage?: IRequestMessageListener,
+): TurnRunner {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IMessageStreamer)
@@ -224,6 +243,10 @@ function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor
   services
     .register(IRequestClockListener)
     .using(() => new NoopRequestClock())
+    .asSelf();
+  services
+    .register(IRequestMessageListener)
+    .using(() => requestMessage ?? new RecordingRequestMessage())
     .asSelf();
   services.register(TurnRunner).asSelf();
   return services.buildProvider().resolve(TurnRunner);
@@ -466,6 +489,21 @@ describe('TurnRunner — transient retry', () => {
 
     const actual = sleep.calls[0];
     expect(actual).toBe(BASE_DELAY_MS);
+  });
+
+  // The retry is the transport recovering from its own failure. The message is the same message, so a
+  // consumer recording what was sent must not be told about it once per attempt.
+  it('announces the request message once however many attempts it takes', async () => {
+    const sleep = new FakeSleep();
+    const requestMessage = new RecordingRequestMessage();
+    const processor = new FakeProcessor([new ConnectionError('boom'), new ConnectionError('boom'), makeResult()]);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, undefined, undefined, undefined, requestMessage);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const expected = 1;
+    const actual = requestMessage.sent.length;
+    expect(actual).toBe(expected);
   });
 
   it('throws a non-retryable error immediately without sleeping', async () => {
