@@ -752,3 +752,20 @@ describe('ConversationState — how often it looks for settled code blocks', () 
     expect(actual).toBe(expected);
   });
 });
+
+describe('ConversationState — one period per block', () => {
+  const FENCE = '```ts\nconst a = 1;\n```\n\n';
+
+  it('looks at a new block straight away, however recently the one before it looked', () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const state = buildConversationState(clock);
+    state.transitionBlock('response');
+    state.appendStreaming(`${FENCE}after`);
+    state.transitionBlock('prompt');
+    state.transitionBlock('response');
+    state.appendStreaming(`${FENCE}after`);
+    const expected = 1;
+    const actual = state.activeBlock?.fences?.length;
+    expect(actual).toBe(expected);
+  });
+});

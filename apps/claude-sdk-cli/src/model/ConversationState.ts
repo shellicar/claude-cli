@@ -106,7 +106,7 @@ export class ConversationState extends IConversationState {
   #activeBlock: Block | null = null;
   @dependsOn(Clock) private readonly clock!: Clock;
   #promptStartedAt: Instant | null = null;
-  #lastSettleMillis = Number.NEGATIVE_INFINITY;
+  readonly #lastSettleMillis = new WeakMap<Block, number>();
   readonly #emitter = new EventEmitter<ConversationStateEvents>();
 
   public on<K extends keyof ConversationStateEvents>(event: K, listener: (...args: ConversationStateEvents[K]) => void): void {
@@ -316,8 +316,10 @@ export class ConversationState extends IConversationState {
    * that has closed cannot reopen. `replaceActiveFromOffset` and `setActiveBlockContent` can
    * shorten or replace it and would break the alignment; neither has a caller today.
    *
-   * Sealing always looks, whatever the period: it is the last chance, and what it finds is final.
-   * The period governs the streaming path alone, which is also the only path that reads the clock.
+   * The period is held per block, so a block that has just opened is looked at straight away
+   * rather than waiting out the one before it. Sealing always looks, whatever the period: it is
+   * the last chance, and what it finds is final. The streaming path is the only one that reads
+   * the clock.
    */
   #settleFences(block: Block, final: boolean): void {
     if (block.type !== 'response') {
@@ -325,10 +327,11 @@ export class ConversationState extends IConversationState {
     }
     if (!final) {
       const now = this.clock.millis();
-      if (now - this.#lastSettleMillis < FENCE_SETTLE_MS) {
+      const last = this.#lastSettleMillis.get(block);
+      if (last !== undefined && now - last < FENCE_SETTLE_MS) {
         return;
       }
-      this.#lastSettleMillis = now;
+      this.#lastSettleMillis.set(block, now);
     }
     const texts = settledCodeTexts(block.content, final);
     const held = block.fences ?? [];
