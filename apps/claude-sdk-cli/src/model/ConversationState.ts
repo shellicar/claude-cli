@@ -19,8 +19,8 @@ export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'executio
  * Without a period this runs once per delta, and each run parses the whole block, so the cost
  * of a long answer grows with the square of its length. Nothing needs the fence noticed on the
  * delta that closed it: the affordance cannot appear before the next paint anyway, and the seal
- * settles everything unconditionally. Matched to the render's own refresh so a fence that
- * settles is carrying an id by the time the frame that would draw its icon is built.
+ * settles everything unconditionally. The value only has to be short enough that the latency it
+ * adds before an icon appears goes unnoticed.
  */
 const FENCE_SETTLE_MS = 120;
 
