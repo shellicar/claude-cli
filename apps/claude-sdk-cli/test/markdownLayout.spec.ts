@@ -1,7 +1,8 @@
+import { marked } from 'marked';
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import type { CodeDecorator } from '../src/model/blockLayout.js';
-import { markdownContent } from '../src/model/markdown/markdownLayout.js';
+import { codeBoxCount, markdownContent } from '../src/model/markdown/markdownLayout.js';
 
 const markdownContentLines = (content: string, cols: number, indent: string, decorate: CodeDecorator): string[] => markdownContent(content, cols, indent, decorate).lines;
 
@@ -299,5 +300,57 @@ describe('table — measuring a cell', () => {
     const actual = render(['| a | b |', '| --- | --- |', '| 1 | |']).filter((l) => /\s$/.test(l));
 
     expect(actual).toEqual(expected);
+  });
+});
+
+// codeBoxCount tells the store how many code boxes a render will draw, and the ids it hands
+// out are matched to them by order, so the two walks have to agree on every construct. They
+// are separate implementations, and this is what holds them together: a document carrying
+// every construct the walk has a case for, counted both ways. A construct added to one walk
+// and not the other still needs adding here.
+const EVERY_CONSTRUCT = [
+  '# Heading',
+  '',
+  'A paragraph with **bold** and `a codespan`.',
+  '',
+  '```ts',
+  'const top = 1;',
+  '```',
+  '',
+  '- a list item',
+  '- one with a fence inside it:',
+  '',
+  '  ```ts',
+  '  const inAList = 2;',
+  '  ```',
+  '',
+  '> a quote',
+  '>',
+  '> ```ts',
+  '> const inAQuote = 3;',
+  '> ```',
+  '',
+  '| a | b |',
+  '| - | - |',
+  '| 1 | 2 |',
+  '',
+  '---',
+  '',
+  '    const indented = 4;',
+  '',
+].join('\n');
+
+describe('codeBoxCount', () => {
+  it('counts exactly the boxes the walk draws', () => {
+    const drawn = markdownContent(EVERY_CONSTRUCT, COLS, '', getHighlighted).lines;
+    const expected = drawn.filter((line) => line.includes('\u250c')).length;
+    const actual = codeBoxCount(marked.lexer(EVERY_CONSTRUCT));
+    expect(actual).toBe(expected);
+  });
+
+  it('counts more than one, so the document is actually exercising it', () => {
+    const expected = true;
+    const actual = codeBoxCount(marked.lexer(EVERY_CONSTRUCT)) > 1;
+    expect(actual).toBe(expected);
   });
 });
