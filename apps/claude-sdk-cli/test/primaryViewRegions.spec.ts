@@ -1,11 +1,12 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { hitTest } from '../src/model/ClickRegion.js';
 import { ConversationListState } from '../src/model/ConversationListState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
@@ -39,6 +40,30 @@ function cellUnderCodeRegion(frame: Frame): string | undefined {
   return glyphAtColumn(frame.rows[region.row] ?? '', region.startCol);
 }
 
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+// ConversationState injects Clock and ILogger; constructing it bare leaves the streaming
+// path without a clock to rate-limit against.
+function makeConversationState(): ConversationState {
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(NOW, ZoneId.UTC))
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
+    .asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
+  return services.buildProvider().resolve(ConversationState);
+}
+
 function makeTurnClock(): ITurnClock {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
@@ -53,7 +78,7 @@ function makeModel(): ViewModel {
   const terminalState = new TerminalState();
   terminalState.setSize(80, 24);
   return {
-    conversationState: new ConversationState(),
+    conversationState: makeConversationState(),
     editorBuffer: buildEditorBuffer(),
     segmenter: new IntlGraphemeSegmenter(),
     toolApprovalState: new ToolApprovalState(),

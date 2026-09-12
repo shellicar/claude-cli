@@ -14,6 +14,17 @@ type ConversationStateEvents = {
 export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'execution' | 'compaction' | 'meta' | 'notice';
 
 /**
+ * How often a still-streaming block is re-parsed to look for code blocks that have settled.
+ *
+ * Without a period this runs once per delta, and each run parses the whole block, so the cost
+ * of a long answer grows with the square of its length. Nothing needs the fence noticed on the
+ * delta that closed it: the affordance cannot appear before the next paint anyway, and the seal
+ * settles everything unconditionally. Matched to the render's own refresh so a fence that
+ * settles is carrying an id by the time the frame that would draw its icon is built.
+ */
+const FENCE_SETTLE_MS = 120;
+
+/**
  * A code block whose content has settled, and the identity a click on its copy affordance
  * resolves to. Minted once and never reissued, so the same fence is the same target in
  * every frame that draws it.
@@ -95,6 +106,7 @@ export class ConversationState extends IConversationState {
   #activeBlock: Block | null = null;
   @dependsOn(Clock) private readonly clock!: Clock;
   #promptStartedAt: Instant | null = null;
+  #lastSettleMillis = Number.NEGATIVE_INFINITY;
   readonly #emitter = new EventEmitter<ConversationStateEvents>();
 
   public on<K extends keyof ConversationStateEvents>(event: K, listener: (...args: ConversationStateEvents[K]) => void): void {
@@ -299,13 +311,24 @@ export class ConversationState extends IConversationState {
   /**
    * Give an identity to any code block that has settled since the last look.
    *
-   * Ids are minted once and never revisited. Settled code blocks only ever append, because
-   * content is only ever appended to and a fence that has closed cannot reopen, so the
-   * records already held still line up with the order a render walks them in.
+   * Ids are minted once and never revisited, so the records already held have to still line up
+   * with the order a render walks them in. That holds while content only grows, since a fence
+   * that has closed cannot reopen. `replaceActiveFromOffset` and `setActiveBlockContent` can
+   * shorten or replace it and would break the alignment; neither has a caller today.
+   *
+   * Sealing always looks, whatever the period: it is the last chance, and what it finds is final.
+   * The period governs the streaming path alone, which is also the only path that reads the clock.
    */
   #settleFences(block: Block, final: boolean): void {
     if (block.type !== 'response') {
       return;
+    }
+    if (!final) {
+      const now = this.clock.millis();
+      if (now - this.#lastSettleMillis < FENCE_SETTLE_MS) {
+        return;
+      }
+      this.#lastSettleMillis = now;
     }
     const texts = settledCodeTexts(block.content, final);
     const held = block.fences ?? [];

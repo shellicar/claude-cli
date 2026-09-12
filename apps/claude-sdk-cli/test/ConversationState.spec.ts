@@ -711,3 +711,44 @@ describe('ConversationState — settled code blocks', () => {
     expect(actual).toBeUndefined();
   });
 });
+
+describe('ConversationState — how often it looks for settled code blocks', () => {
+  const FENCE = '```ts\nconst a = 1;\n```\n\n';
+
+  it('does not look again within the period', () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const state = buildConversationState(clock);
+    state.transitionBlock('response');
+    state.appendStreaming(`${FENCE}after`);
+    clock.advanceTo(Instant.ofEpochMilli(119));
+    state.appendStreaming(`\n\n${FENCE}more`);
+    const expected = 1;
+    const actual = state.activeBlock?.fences?.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('looks again once the period has passed', () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const state = buildConversationState(clock);
+    state.transitionBlock('response');
+    state.appendStreaming(`${FENCE}after`);
+    clock.advanceTo(Instant.ofEpochMilli(120));
+    state.appendStreaming(`\n\n${FENCE}more`);
+    const expected = 2;
+    const actual = state.activeBlock?.fences?.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('looks when the block seals, however recently it last looked', () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const state = buildConversationState(clock);
+    state.transitionBlock('response');
+    state.appendStreaming(`${FENCE}after`);
+    clock.advanceTo(Instant.ofEpochMilli(1));
+    state.appendStreaming(`\n\n${FENCE}more`);
+    state.completeActive();
+    const expected = 2;
+    const actual = state.sealedBlocks[0]?.fences?.length;
+    expect(actual).toBe(expected);
+  });
+});
