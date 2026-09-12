@@ -3,8 +3,8 @@ import type { ClickRegion } from '../src/model/ClickRegion.js';
 import { ClickTracker } from '../src/model/ClickTracker.js';
 
 // Each call builds a fresh object, so a test that presses and releases "the same"
-// region is passing two distinct objects naming one target — the repaint case,
-// where the frame the release resolves against is not the frame the press did.
+// region is passing two distinct objects naming one target. That is the repaint case:
+// the frame the release resolves against is not the frame the press did.
 const region = (id: string, text = 'const a = 1;', row = 4): ClickRegion => ({ id, row, startCol: 10, endCol: 12, text });
 
 describe('ClickTracker', () => {

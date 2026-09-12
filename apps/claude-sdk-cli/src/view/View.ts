@@ -66,7 +66,7 @@ export type Frame = {
 /**
  * A presentation's render surface. It renders the model to a full frame and does
  * nothing else: no key handling, no I/O, no store mutation. Returning a region is not
- * acting on one — the frame describes what a click would hit, and the input chain is
+ * acting on one: the frame describes what a click would hit, and the input chain is
  * what invokes it.
  */
 export interface View {

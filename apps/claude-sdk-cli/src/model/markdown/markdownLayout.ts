@@ -275,9 +275,9 @@ export function codeBoxCount(tokens: readonly Token[]): number {
 }
 
 /**
- * Whether the last thing in the document is a code block. marked's fence rule consumes to
- * end of input when a fence never closes, so an unclosed one is always in this position and
- * nowhere else — which makes "not last" a proof that a fence closed.
+ * Whether the last thing in the document is a code block. marked's fence rule consumes to end
+ * of input when a fence never closes, so an unclosed one is always in this position. A code
+ * block anywhere else has closed.
  */
 function endsInCode(tokens: readonly Token[]): boolean {
   const last = tokens[tokens.length - 1];

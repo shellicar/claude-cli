@@ -59,8 +59,8 @@ export function link(href: string, label: string): string {
 /**
  * Draw a code body inside a box with a language label in the top border.
  *
- * Carries the copy affordance only when `withIcon`, which is how a code block nothing can
- * identify yet — an unclosed fence — is drawn without offering an action that would not work.
+ * `withIcon` decides whether the top border carries the copy affordance. Without it the border
+ * is drawn to the same width and `iconCol` comes back as -1.
  *
  * Capped to `termWidth`: snug to the content when it fits, capped-and-wrapped when
  * it does not, so a long line is seen instead of clipping off the right edge. The

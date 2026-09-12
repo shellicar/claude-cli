@@ -11,9 +11,8 @@ import type { ClickRegion } from './ClickRegion.js';
  * release lands on the same target, or it does not. A release tmux swallowed during a
  * drag simply never fires.
  *
- * Targets are compared by id, not by what they copy. Two blocks can hold identical text,
- * the same prompt sent twice, and a drag from one to the other has to cancel, which it
- * cannot do while the payload is the identity.
+ * Targets are compared by id rather than by what they copy, because two of them can hold
+ * identical text: the same prompt sent twice. A drag between those two has to cancel.
  */
 /** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IClickTracker {

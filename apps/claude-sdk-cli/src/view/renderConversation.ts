@@ -247,8 +247,7 @@ export function buildDivider(displayLabel: string | null, cols: number, timestam
 /**
  * A block's header divider, with the copy affordance that puts the whole block on the
  * clipboard. Only sealed blocks get one: until a block closes there is less to copy than
- * there will be, and a partial copy is not worth offering. Same rule as the code box,
- * whose icon waits for its fence to close.
+ * there will be. Same rule as the code box, whose icon waits for its fence to close.
  */
 export function buildBlockDivider(displayLabel: string, cols: number, timestamps?: DividerTimestamps): { line: string; iconCol: number } {
   const bare = buildDivider(displayLabel, cols, timestamps);
@@ -268,8 +267,8 @@ function runContent(run: readonly Block[]): string {
  * What a block's copy affordance puts on the clipboard.
  *
  * Consecutive blocks of one type are drawn as a single block under one header, so the
- * affordance on that header answers for every block beneath it, not just the one that
- * carried the header. A run of one is the ordinary case.
+ * affordance on that header answers for every block beneath it. A run of one is the
+ * ordinary case.
  *
  * A tools or execution block shows a one-line summary of the calls it made, which is
  * useless pasted anywhere, so it copies the calls themselves as JSON: a tools block is
